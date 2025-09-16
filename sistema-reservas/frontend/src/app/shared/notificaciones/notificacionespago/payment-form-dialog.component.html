@@ -1,0 +1,109 @@
+<div class="payment-container">
+
+  <h2 class="payment-title">
+    Datos de pago - {{ data.method === 'CARD' ? '💳 Tarjeta' : '💵 Efectivo' }}
+  </h2>
+
+  <!-- Detalles de la reserva -->
+  <div class="reservation-details">
+    <h3>Detalles de la reserva</h3>
+    <p><strong>Codigo de reserva:</strong> {{ code || 'Cargando...'}}</p>
+    <p><strong>Cancha:</strong> {{ courtName || 'Cargando...' }}</p>
+    <p><strong>Horario:</strong>
+      {{ startTime ? startTime + ' - ' + endTime : 'Cargando...' }}
+    </p>
+    <p><strong>Precio por hora:</strong> ${{ pricePerHour }}</p>
+    <p><strong>Total a pagar:</strong> ${{ totalPrice }}</p>
+  </div>
+
+  <!-- Formulario de pago -->
+  <form [formGroup]="form" (ngSubmit)="submit()" class="payment-form">
+
+    <!-- Nombre -->
+    <mat-form-field appearance="fill" class="full-width">
+      <mat-label>Nombre completo</mat-label>
+      <input matInput formControlName="customerName" placeholder="Ej: Juan Pérez">
+      <mat-error *ngIf="form.get('customerName')?.hasError('required')">
+        El nombre es obligatorio
+      </mat-error>
+    </mat-form-field>
+
+    <!-- Correo -->
+    <mat-form-field appearance="fill" class="full-width">
+      <mat-label>Correo electrónico</mat-label>
+      <input matInput formControlName="customerEmail" type="email" placeholder="ejemplo@correo.com">
+      <mat-error *ngIf="form.get('customerEmail')?.hasError('required')">
+        El correo es obligatorio
+      </mat-error>
+      <mat-error *ngIf="form.get('customerEmail')?.hasError('email')">
+        Ingresa un correo válido
+      </mat-error>
+    </mat-form-field>
+
+    <!-- Teléfono -->
+    <mat-form-field appearance="fill" class="full-width">
+      <mat-label>Teléfono</mat-label>
+      <input
+        matInput
+        formControlName="customerPhone"
+        type="tel"
+        pattern="[0-9]*"
+        inputmode="numeric"
+        maxlength="15"
+        placeholder="Ej: 71234567"
+        (keypress)="onlyNumbers($event)"
+      >
+      <mat-error *ngIf="form.get('customerPhone')?.hasError('required')">
+        El teléfono es obligatorio
+      </mat-error>
+      <mat-error *ngIf="form.get('customerPhone')?.hasError('pattern')">
+        Solo se permiten números (8-15 dígitos)
+      </mat-error>
+    </mat-form-field>
+
+
+    <!-- Campos adicionales si es tarjeta -->
+    <div *ngIf="data.method === 'CARD'" class="card-fields">
+      <!-- Número de tarjeta -->
+      <mat-form-field appearance="fill" class="full-width">
+        <mat-label>Número de tarjeta</mat-label>
+        <input
+          matInput
+          formControlName="cardNumber"
+          maxlength="19"
+          placeholder="1234 5678 9012 3456"
+          (input)="formatCardNumber($event)"
+        >
+        <mat-error *ngIf="form.get('cardNumber')?.hasError('required')">
+          El número de tarjeta es obligatorio
+        </mat-error>
+        <mat-error *ngIf="form.get('cardNumber')?.hasError('invalidCardNumber')">
+          Debe contener 16 dígitos válidos
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Expiración -->
+      <mat-form-field appearance="fill" class="full-width">
+        <mat-label>Fecha de expiración</mat-label>
+        <input
+          matInput
+          formControlName="cardExpiry"
+          placeholder="MM/YY"
+          maxlength="5"
+          (input)="formatCardExpiry($event)"
+        >
+        <mat-error *ngIf="form.get('cardExpiry')?.hasError('required')">
+          La fecha de expiración es obligatoria
+        </mat-error>
+        <mat-error *ngIf="form.get('cardExpiry')?.hasError('invalidExpiry')">
+          La tarjeta ya expiró o el formato es inválido
+        </mat-error>
+      </mat-form-field>
+    </div>
+
+    <!-- Botón de confirmación -->
+    <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">
+      Confirmar Pago
+    </button>
+  </form>
+</div>

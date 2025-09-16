@@ -1,0 +1,92 @@
+<div class="dashboard">
+  <aside
+    class="side-panel"
+    [class.closed]="isSidePanelClosed"
+    (mouseenter)="hoverPanel(true)"
+    (mouseleave)="hoverPanel(false)"
+  >
+    <button class="toggle-btn" (click)="toggleSidePanel()">
+      {{ isSidePanelClosed ? '☰' : '✕' }}
+    </button>
+
+    <h2 [class.hidden]="isSidePanelClosed">Panel Admin</h2>
+
+    <nav>
+      <a routerLink="/admin" routerLinkActive="active" matTooltip="Inicio">
+        <i class="fas fa-home"></i>
+        <span [class.hidden]="isSidePanelClosed">Inicio</span>
+      </a>
+      <a routerLink="/admin/usuarios" routerLinkActive="active" matTooltip="Usuarios">
+        <i class="fas fa-users"></i>
+        <span [class.hidden]="isSidePanelClosed">Usuarios</span>
+      </a>
+      <a routerLink="/admin/canchas" routerLinkActive="active" matTooltip="Canchas">
+        <i class="fas fa-futbol"></i>
+        <span [class.hidden]="isSidePanelClosed">Canchas</span>
+      </a>
+      <a routerLink="/admin/reservas" routerLinkActive="active" matTooltip="Reservas">
+        <i class="fas fa-calendar-check"></i>
+        <span [class.hidden]="isSidePanelClosed">Reservas</span>
+      </a>
+
+      <!--
+      // Proximamente///
+
+      <a routerLink="/admin/reportes" routerLinkActive="active" matTooltip="Reportes">
+        <i class="fas fa-chart-line"></i>
+        <span [class.hidden]="isSidePanelClosed">Reportes</span>
+      </a>
+      <a routerLink="/admin/configuraciones" routerLinkActive="active" matTooltip="Configuraciones">
+        <i class="fas fa-cogs"></i>
+        <span [class.hidden]="isSidePanelClosed">Configuraciones</span>
+      </a>
+
+      -->
+    </nav>
+
+    <!-- Info de usuario combinado -->
+    <ng-container *ngIf="user$ | async as user">
+      <div class="user-info" [class.hidden]="isSidePanelClosed">
+        <p>{{ user.email }}</p>
+        <p>{{ user.role }}</p>
+      </div>
+    </ng-container>
+
+    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      <span [class.hidden]="isSidePanelClosed">Cerrar sesión</span>
+    </button>
+  </aside>
+
+    <main>
+  <section class="quick-access">
+    <h1>Bienvenido al Sistema de Reservas</h1>
+    <p>Gestiona canchas, usuarios y reservas de forma centralizada.</p>
+
+    <div class="cards-container">
+      <!-- Usuarios -->
+      <div class="card card-usuarios" routerLink="/admin/usuarios" matTooltip="Ir a Usuarios">
+        <i class="fas fa-users fa-2x"></i>
+        <h3>Usuarios</h3>
+        <p>Gestiona la información de los usuarios registrados.</p>
+      </div>
+
+      <!-- Canchas -->
+      <div class="card card-canchas" routerLink="/admin/canchas" matTooltip="Ir a Canchas">
+        <i class="fas fa-futbol fa-2x"></i>
+        <h3>Canchas</h3>
+        <p>Administra las canchas disponibles para reserva.</p>
+      </div>
+
+      <!-- Reservas -->
+      <div class="card card-reservas" routerLink="/admin/reservas" matTooltip="Ir a Reservas">
+        <i class="fas fa-calendar-check fa-2x"></i>
+        <h3>Reservas</h3>
+        <p>Visualiza y administra las reservas realizadas.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+
+</div>

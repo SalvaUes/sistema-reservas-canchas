@@ -1,0 +1,24 @@
+<div class="pending-snackbar">
+  <div class="info">
+    <h3>⚡ Reserva Pendiente</h3>
+    <p>
+      <strong>Codigo de reserva:</strong> {{ data.reservationCode }}<br />
+      <strong>Cancha:</strong> {{ data.courtName }}<br />
+      <strong>Hora:</strong> {{ data.startTime }} - {{ data.endTime }}
+    </p>
+  </div>
+
+  <div class="timer-bar">
+    <span class="timer-text">⏱️ Expira en: {{ remainingSeconds }}s</span>
+    <mat-progress-bar
+      mode="determinate"
+      [value]="progress"
+      color="warn"
+      class="progress-bar">
+    </mat-progress-bar>
+  </div>
+
+  <div class="actions">
+    <button mat-raised-button color="warn" (click)="close()">Cancelar</button>
+  </div>
+</div>

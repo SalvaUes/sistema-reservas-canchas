@@ -1,0 +1,120 @@
+/* Estilo principal para tu snackbar */
+.pending-snackbar {
+  width: 320px;
+  max-width: 90vw;
+  background: #fff;
+  border-left: 5px solid #f44336; /* rojo alerta */
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  padding: 16px;
+  color: #333;
+  font-family: 'Roboto', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .info {
+    h3 {
+      margin: 0;
+      font-size: 1.1em;
+      color: #d32f2f;
+      font-weight: bold;
+    }
+    p {
+      margin: 4px 0 0;
+      font-size: 0.9em;
+      line-height: 1.4;
+    }
+  }
+
+  .timer-bar {
+    .timer-text {
+      display: block;
+      font-size: 0.85em;
+      margin-bottom: 6px;
+      color: #555;
+    }
+    .progress-bar {
+      height: 6px;
+      border-radius: 4px;
+    }
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* Animación de entrada */
+  transform: translateY(100%);
+  opacity: 0;
+  animation: slide-up 0.4s forwards;
+}
+
+/* Panel que envuelve el componente dentro de MatSnackBar */
+.pending-snackbar-panel {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
+  width: 320px;
+  max-width: 90vw;
+}
+
+/* Animaciones */
+@keyframes slide-up {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-down {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* Contenedor principal del snackbar de Angular Material MDC */
+.mdc-snackbar__surface.mat-mdc-snackbar-surface {
+  background-color: transparent !important;  /* 🔹 transparente */
+  box-shadow: none !important;              /* opcional si quieres quitar sombra por defecto */
+  padding: 0 !important;                    /* dejamos que tu componente maneje padding */
+}
+
+.mat-mdc-snack-bar-container .mat-mdc-snackbar-surface{
+  background-color: transparent !important;  /* 🔹 transparente */
+  box-shadow: none !important;              /* opcional si quieres quitar sombra por defecto */
+  padding: 0 !important;                    /* dejamos que tu componente maneje padding */
+}
+
+/* Panel que envuelve tu componente */
+.pending-snackbar-panel {
+  width: 320px;
+  max-width: 90vw;
+  background: #fff;                         /* fondo blanco de tu snackbar */
+  border-left: 5px solid #f44336;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  padding: 16px;
+}
+
+/* Contenedor padre de Angular Material */
+.mat-snack-bar-container.pending-snackbar-panel {
+  background: transparent !important; /* 🔹 elimina el fondo negro */
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  bottom: 20px !important;
+  right: 20px !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}

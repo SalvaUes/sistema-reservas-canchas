@@ -1,0 +1,98 @@
+<div class="register-container">
+  <h2>Registrarse</h2>
+
+  <form (ngSubmit)="onRegister()">
+    <div>
+      <label>Nombre*:</label>
+      <input
+        type="text"
+        [(ngModel)]="firstName"
+        name="firstName"
+        required
+        maxlength="50"
+        placeholder="Máx. 50 caracteres"
+      />
+    </div>
+
+    <div>
+      <label>Apellido*:</label>
+      <input
+        type="text"
+        [(ngModel)]="lastName"
+        name="lastName"
+        required
+        maxlength="50"
+        placeholder="Máx. 50 caracteres"
+      />
+    </div>
+
+    <div>
+      <label>Email*:</label>
+      <input
+        type="email"
+        [(ngModel)]="email"
+        name="email"
+        required
+        maxlength="100"
+        placeholder="Máx. 100 caracteres"
+        pattern="^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        #emailInput="ngModel"
+      />
+
+      <!-- 🔹 Mensajes de validación en vivo -->
+      <div class="error" *ngIf="emailInput.invalid && (emailInput.dirty || emailInput.touched)">
+        <span *ngIf="emailInput.errors?.['required']">
+          El correo es obligatorio.
+        </span>
+        <span *ngIf="emailInput.errors?.['pattern']">
+          Ingresa un correo válido con @.
+        </span>
+      </div>
+    </div>
+
+
+    <label>Contraseña*:</label>
+    <div class="password-wrapper">
+      <input
+        [type]="showPassword ? 'text' : 'password'"
+        [(ngModel)]="password"
+        name="password"
+        required
+        maxlength="20"
+        placeholder="Máx. 20 caracteres"
+      />
+      <button type="button" class="toggle-btn" (click)="togglePassword()">
+        {{ showPassword ? 'Ocultar' : '👁 Ver' }}
+      </button>
+    </div>
+
+    <div>
+      <label>Teléfono:</label>
+      <input
+        type="text"
+        [(ngModel)]="phoneNumber"
+        name="phoneNumber"
+        maxlength="15"
+        placeholder="Ej: 50312345678 (Máx. 15 dígitos)"
+        (keypress)="allowOnlyNumbers($event)"
+      />
+    </div>
+
+
+    <div>
+      <label>Fecha de nacimiento:</label>
+      <input
+        type="date"
+        [(ngModel)]="dateOfBirth"
+        name="dateOfBirth"
+        [max]="today"
+      />
+    </div>
+
+    <button type="submit">Registrar</button>
+  </form>
+
+  <button type="button" class="back-btn" (click)="goToLogin()">Volver a login</button>
+
+  <div *ngIf="message" class="message">{{ message }}</div>
+</div>

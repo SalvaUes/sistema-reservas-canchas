@@ -1,0 +1,126 @@
+.login-container {
+  max-width: 450px;
+  margin: 80px auto;
+  padding: 50px;
+  border-radius: 15px;
+  box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #ffffff, #f5f7fa);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 25px;
+  font-size: 1.8rem;
+  color: #3f51b5;
+}
+
+.form-group {
+  margin-bottom: 15px;
+
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+input {
+  width: 94.5%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+input:focus {
+  border-color: #3f51b5;
+  outline: none;
+  box-shadow: 0 0 5px rgba(63, 81, 181, 0.4);
+}
+
+button[type="submit"] {
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
+  background: #3f51b5;
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.1s ease-in-out;
+}
+
+button[type="submit"]:hover {
+  background: #2c3e9c;
+  transform: translateY(-2px);
+}
+
+.error {
+  margin-top: 15px;
+  color: #e53935;
+  font-weight: bold;
+  text-align: center;
+}
+
+.register-text {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.register-text a {
+  color: #3f51b5;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.register-text a:hover {
+  text-decoration: underline;
+}
+
+/* Contraseña con toggle */
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+
+  input {
+    width: 100%;
+    padding-right: 20px; // espacio para el ícono
+  }
+
+  .toggle-btn {
+    position: absolute;
+    right: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #555;
+    transition: color 0.3s ease;
+  }
+
+  .toggle-btn:hover {
+    color: #3f51b5;
+  }
+}
+
+/* Animación de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

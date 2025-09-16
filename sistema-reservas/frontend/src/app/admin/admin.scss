@@ -1,0 +1,258 @@
+/* Reset para evitar márgenes y espacios del navegador */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+  top: 0;
+  background: #f4f4f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+
+  .side-panel {
+    width: 250px;
+    background: linear-gradient(180deg, #1f1f1f, #2d2d2d);
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.4s ease-in-out, padding 0.3s ease-in-out;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+
+    &.closed {
+      width: 70px;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+      }
+
+      nav a {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+
+      .logout-btn {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+    }
+
+    &:hover {
+      width: 250px;
+      padding: 1.5rem 1rem;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      nav a, .logout-btn {
+        justify-content: flex-start;
+      }
+    }
+
+    .toggle-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+
+      &:hover {
+        transform: scale(1.2);
+        color: #ff4b4b;
+      }
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 3rem;
+
+      a {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: #ddd;
+        text-decoration: none;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: background 0.3s ease-in-out, transform 0.3s ease-in-out;
+
+        i {
+          font-size: 1.2rem;
+          transition: transform 0.3s ease-in-out;
+        }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateX(5px);
+        }
+
+        &.active {
+          background: rgba(255, 255, 255, 0.2);
+          font-weight: bold;
+        }
+      }
+    }
+
+    .user-info {
+      margin-top: auto;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+      transition: opacity 0.3s ease-in-out;
+
+      p {
+        margin: 0.2rem 0;
+        &:first-child {
+          font-weight: bold;
+        }
+      }
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 1rem;
+      padding: 0.6rem;
+      background: #ff4b4b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease-in-out, justify-content 0.3s ease-in-out;
+
+      &:hover {
+        background: #e63939;
+      }
+    }
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  main {
+    flex: 1;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+
+    section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+
+      h1 {
+        margin-bottom: 1rem;
+        color: #222;
+      }
+
+      p {
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #555;
+      }
+    }
+
+    .quick-access {
+      padding: 2rem;
+    }
+
+    .cards-container {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      flex: 1 1 250px;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card i {
+      color: #4a90e2;
+      margin-bottom: 1rem;
+    }
+
+    .card h3 {
+      margin: 0.5rem 0;
+      font-size: 1.2rem;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+      color: #666666;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .card-usuarios {
+  background: linear-gradient(135deg, #4a90e2, #357ABD);
+  color: #fff;
+
+  i, h3, p {
+    color: #fff;
+  }
+}
+
+.card-canchas {
+  background: linear-gradient(135deg, #139478, #1AB394);
+  color: #fff;
+
+  i, h3, p {
+    color: #fff;
+  }
+}
+
+.card-reservas {
+  background: linear-gradient(135deg, #F5A623, #D97706);
+  color: #fff;
+
+  i, h3, p {
+    color: #fff;
+  }
+}
+
+.card {
+  &:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  }
+}
+
+
+  }
+}

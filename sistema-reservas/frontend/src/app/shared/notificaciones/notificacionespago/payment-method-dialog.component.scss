@@ -1,0 +1,73 @@
+.payment-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 2rem auto;
+  padding: 1rem;
+  max-width: 700px;
+  text-align: center;
+}
+
+.payment-wrapper h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.6rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.cards-container {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  flex: 1 1 250px;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card i {
+  margin-bottom: 1rem;
+}
+
+.card h3 {
+  margin: 0.5rem 0;
+  font-size: 1.2rem;
+}
+
+.card p {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.card:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Estilos individuales para las tarjetas */
+.card-card {
+  background: linear-gradient(135deg, #2264af, #034791);
+  color: #fff;
+}
+
+.card-card i, .card-card h3, .card-card p {
+  color: #fff;
+}
+
+.card-cash {
+  background: linear-gradient(135deg, #27ae60, #145a32);
+  color: #fff;
+}
+
+.card-cash i, .card-cash h3, .card-cash p {
+  color: #fff;
+}

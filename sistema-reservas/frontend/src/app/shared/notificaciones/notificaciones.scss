@@ -1,0 +1,66 @@
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notification {
+  position: relative;
+  padding: 15px 20px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 500;
+  min-width: 280px;
+  max-width: 350px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.info {
+  background: #2196f3;
+}
+.notification.success {
+  background: #4caf50;
+}
+.notification.warning {
+  background: #ff9800;
+}
+.notification.error {
+  background: #f44336;
+}
+
+.close-btn {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  transition: width 0.1s linear;
+  border-radius: 0 0 8px 8px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

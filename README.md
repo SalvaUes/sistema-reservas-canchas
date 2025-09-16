@@ -1,3 +1,4 @@
+---
 ## 💻 Preparar entorno para el correcto funcionamiento del sistema
 #### ⚙️ Instalación de Java JDK
 - Descargamos el JDK e instalamos desde el siguiente enlace:
@@ -55,4 +56,49 @@ npm install @angular/cli
 ng serve
 ```
 ![](imgs/commAngular.png)
+---
+
+## 📁 Capturas del proyecto funcionando
+#### ⚙️ Captura del inicio de sesión
+![](imgs/login.png)
+---
+
+#### ⚙️ Captura del registro de usuario
+![](imgs/signin.png)
+---
+
+#### ⚙️ Captura de la pantalla principal
+![](imgs/main.png)
+---
+
+#### ⚙️ Captura de las canchas disponibles
+![](imgs/canchas.png)
+---
+
+#### ⚙️ Captura del formulario para realizar una reserva de una cancha
+![](imgs/reservar.png)
+---
+
+#### ⚙️ Captura que muestra el historial de las reservas
+![](imgs/reservas.png)
+---
+
+#### ⚙️ Captura de los metodos de pago disponibles
+![](imgs/metodoPago.png)
+---
+
+#### ⚙️ Captura del formulario de pago con tarjeta
+![](imgs/card.png)
+---
+
+#### ⚙️ Captura del formulario del pago en efectivo
+![](imgs/cash.png)
+---
+
+#### ⚙️ Captura de los detalles en una factura
+![](imgs/detalleFact.png)
+---
+
+#### ⚙️ Captura del pdf generado por detalles de la factura
+![](imgs/factura.png)
 ---

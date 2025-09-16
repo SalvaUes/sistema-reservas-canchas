@@ -1,0 +1,120 @@
+<div class="dashboard">
+  <!-- Barra lateral -->
+  <aside
+    class="side-panel"
+    [class.closed]="isSidePanelClosed"
+    (mouseenter)="hoverPanel(true)"
+    (mouseleave)="hoverPanel(false)"
+  >
+    <!-- Botón de toggle -->
+    <button class="toggle-btn" (click)="toggleSidePanel()">
+      {{ isSidePanelClosed ? '☰' : '✕' }}
+    </button>
+
+    <h2 [class.hidden]="isSidePanelClosed">Reservas</h2>
+
+    <nav>
+      <a routerLink="/cliente" routerLinkActive="active" matTooltip="Inicio">
+        <i class="fas fa-home"></i>
+        <span [class.hidden]="isSidePanelClosed">Inicio</span>
+      </a>
+      <a routerLink="/cliente/canchas" routerLinkActive="active" matTooltip="Canchas">
+        <i class="fas fa-futbol"></i>
+        <span [class.hidden]="isSidePanelClosed">Canchas</span>
+      </a>
+      <a routerLink="/cliente/mis-reservas" routerLinkActive="active" matTooltip="Mis Reservas">
+        <i class="fas fa-calendar-check"></i>
+        <span [class.hidden]="isSidePanelClosed">Mis Reservas</span>
+      </a>
+    </nav>
+
+    <!-- Info de usuario -->
+    <div class="user-info" [class.hidden]="isSidePanelClosed">
+      <p>{{ userEmail }}</p>
+      <p>{{ userRole }}</p>
+    </div>
+
+    <!-- Botón de logout -->
+    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      <span [class.hidden]="isSidePanelClosed">Salir</span>
+    </button>
+  </aside>
+
+  <!-- Contenido principal -->
+  <main [class.closed]="isSidePanelClosed">
+    <section class="canchas-section">
+      <h1>Canchas Disponibles</h1>
+
+      <!-- Buscador -->
+      <div class="search-bar">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, código o deporte..."
+          [(ngModel)]="searchTerm"
+          (input)="filterCourts()"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button (click)="search()">Buscar</button>
+      </div>
+
+      <!-- Tabla de canchas -->
+      <div class="table-container">
+        <table class="courts-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Deporte</th>
+              <th>Precio/Hora</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let court of filteredCourts">
+              <td>{{ court.code }}</td>
+              <td>{{ court.name }}</td>
+              <td>{{ court.sportType }}</td>
+              <td>{{ court.pricePerHour | currency }}</td>
+              <td>
+                <button class="reserve-btn" (click)="openReservationModal(court)">
+                  Reservar
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p *ngIf="filteredCourts.length === 0" class="no-results">No se encontraron canchas.</p>
+      </div>
+
+      <!-- Modal de reserva -->
+      <div class="modal-backdrop" *ngIf="showModal" (click)="closeModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <h2>Reservar Cancha: {{ selectedCourt?.name }}</h2>
+
+          <div class="form-group">
+            <label>Fecha:</label>
+            <input type="date" [(ngModel)]="reservationDate" />
+          </div>
+
+          <div class="form-group">
+            <label>Hora inicio:</label>
+            <input type="time" [(ngModel)]="startTime" />
+          </div>
+
+          <div class="form-group">
+            <label>Hora fin:</label>
+            <input type="time" [(ngModel)]="endTime" />
+          </div>
+
+          <div class="form-actions">
+            <button (click)="confirmReservation()">Confirmar Reserva</button>
+            <button type="button" (click)="closeModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>

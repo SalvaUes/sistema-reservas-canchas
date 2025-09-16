@@ -1,0 +1,484 @@
+/* Reset para evitar márgenes y espacios del navegador */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+  top: 0;
+  background: #f4f4f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+
+  .side-panel {
+    width: 250px;
+    background: linear-gradient(180deg, #1f1f1f, #2d2d2d);
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.4s ease-in-out, padding 0.3s ease-in-out;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+
+    &.closed {
+      width: 70px;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+      }
+
+      nav a {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+
+      .logout-btn {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+    }
+
+    &:hover {
+      width: 250px;
+      padding: 1.5rem 1rem;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      nav a, .logout-btn {
+        justify-content: flex-start;
+      }
+    }
+
+    .toggle-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+
+      &:hover {
+        transform: scale(1.2);
+        color: #ff4b4b;
+      }
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 3rem;
+
+      a {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: #ddd;
+        text-decoration: none;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: background 0.3s ease-in-out, transform 0.3s ease-in-out;
+
+        i {
+          font-size: 1.2rem;
+          transition: transform 0.3s ease-in-out;
+        }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateX(5px);
+        }
+
+        &.active {
+          background: rgba(255, 255, 255, 0.2);
+          font-weight: bold;
+        }
+      }
+    }
+
+    .user-info {
+      margin-top: auto;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+      transition: opacity 0.3s ease-in-out;
+
+      p {
+        margin: 0.2rem 0;
+        &:first-child {
+          font-weight: bold;
+        }
+      }
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 1rem;
+      padding: 0.6rem;
+      background: #ff4b4b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease-in-out, justify-content 0.3s ease-in-out;
+
+      &:hover {
+        background: #e63939;
+      }
+    }
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  /* Fondo del modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6); /* un poco más oscuro */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* Modal */
+    .modal {
+      background: #fff;
+      padding: 2rem 2.5rem;
+      border-radius: 12px;
+      width: 420px;
+      max-width: 90%;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+      animation: slideDown 0.3s ease;
+      position: relative;
+    }
+
+    /* Animaciones */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Títulos */
+    .modal h2 {
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      color: #333;
+      text-align: center;
+    }
+
+    /* Formulario */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      margin-bottom: 0.4rem;
+      font-weight: 500;
+      color: #555;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: #3f51b5;
+      outline: none;
+    }
+
+    /* Botones */
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .form-actions button {
+      padding: 0.5rem 1.2rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .form-actions button:hover {
+      transform: translateY(-2px);
+    }
+
+    .form-actions button:first-child {
+      background: #3f51b5;
+      color: #fff;
+    }
+
+    .form-actions button:first-child:hover {
+      background: #303f9f;
+    }
+
+    .form-actions button:last-child {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    .form-actions button:last-child:hover {
+      background: #bdbdbd;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .modal {
+        padding: 1.5rem;
+      }
+
+      .form-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .form-actions button {
+        width: 100%;
+      }
+    }
+
+    /* Tabla usuarios */
+      .table-container {
+        overflow-x: auto;
+
+        .usuarios-table {
+          width: 100%;
+          border-collapse: collapse;
+
+          th, td {
+            padding: 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+          }
+
+          th {
+            background: #f1f1f1;
+            font-weight: bold;
+            color: #444;
+          }
+
+          tr:hover {
+            background: #f9f9f9;
+          }
+
+          .acciones {
+            display: flex;
+            gap: 0.5rem;
+
+            .edit-btn {
+              background: #ffc107;
+              border: none;
+              padding: 0.4rem 0.7rem;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.85rem;
+
+              &:hover {
+                background: #e0a800;
+              }
+            }
+
+            .delete-btn {
+              background: #dc3545;
+              border: none;
+              padding: 0.4rem 0.7rem;
+              border-radius: 6px;
+              color: #fff;
+              cursor: pointer;
+              font-size: 0.85rem;
+
+              &:hover {
+                background: #c82333;
+              }
+            }
+          }
+        }
+
+        .no-results {
+          text-align: center;
+          padding: 1rem;
+          color: #777;
+        }
+      }
+
+    /* Encabezado usuarios */
+      .usuarios-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+
+        input {
+          flex: 1;
+          padding: 0.6rem 1rem;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          margin-right: 1rem;
+          font-size: 0.95rem;
+
+          &:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+          }
+        }
+
+        .add-btn {
+          background: #007bff;
+          color: #fff;
+          border: none;
+          padding: 0.6rem 1rem;
+          border-radius: 8px;
+          font-size: 0.95rem;
+          font-weight: bold;
+          cursor: pointer;
+          transition: background 0.3s ease-in-out;
+
+          &:hover {
+            background: #0056b3;
+          }
+        }
+      }
+
+      /* Formulario */
+      .form-container {
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+
+        h2 {
+          margin-bottom: 1rem;
+          font-size: 1.2rem;
+          color: #333;
+        }
+
+        .form-group {
+          margin-bottom: 1rem;
+
+          label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+          }
+
+          input, select {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+
+            &:focus {
+              outline: none;
+              border-color: #007bff;
+              box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+            }
+          }
+        }
+
+        .form-actions {
+          display: flex;
+          gap: 1rem;
+
+          button {
+            flex: 1;
+            padding: 0.7rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease-in-out;
+
+            &:first-child {
+              background: #28a745;
+              color: #fff;
+
+              &:hover {
+                background: #218838;
+              }
+            }
+
+            &:last-child {
+              background: #6c757d;
+              color: #fff;
+
+              &:hover {
+                background: #5a6268;
+              }
+            }
+          }
+        }
+      }
+
+  main {
+    flex: 1;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+
+    section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+
+      h1 {
+        margin-bottom: 1rem;
+        color: #222;
+      }
+
+      p {
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #555;
+      }
+    }
+  }
+}

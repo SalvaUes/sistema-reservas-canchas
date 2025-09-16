@@ -1,0 +1,383 @@
+/* Reset para evitar márgenes y espacios del navegador */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+  top: 0;
+  background: #f4f4f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333333;
+
+  .side-panel {
+    width: 250px;
+    background: linear-gradient(180deg, #082761, #02579c);
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.4s ease-in-out, padding 0.3s ease-in-out;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+
+    &.closed {
+      width: 70px;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+      }
+
+      nav a {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+
+      .logout-btn {
+        justify-content: center;
+        transition: justify-content 0.3s ease-in-out;
+      }
+    }
+
+    &:hover {
+      width: 250px;
+      padding: 1.5rem 1rem;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      nav a, .logout-btn {
+        justify-content: flex-start;
+      }
+    }
+
+    .toggle-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+
+      &:hover {
+        transform: scale(1.2);
+        color: #cc0505;
+      }
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 3rem;
+
+      a {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: #ddd;
+        text-decoration: none;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: background 0.3s ease-in-out, transform 0.3s ease-in-out;
+
+        i {
+          font-size: 1.2rem;
+          transition: transform 0.3s ease-in-out;
+        }
+
+        &:hover {
+          background: rgba(253, 250, 246, 0.329);
+          transform: translateX(5px);
+        }
+
+        &.active {
+          background: rgba(40, 88, 190, 0.658);
+          font-weight: bold;
+        }
+      }
+    }
+
+    .user-info {
+      margin-top: auto;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+      transition: opacity 0.3s ease-in-out;
+
+      p {
+        margin: 0.2rem 0;
+        &:first-child {
+          font-weight: bold;
+        }
+      }
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 1rem;
+      padding: 0.6rem;
+      background: #ff4b4b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease-in-out, justify-content 0.3s ease-in-out;
+
+      &:hover {
+        background: #e63939;
+      }
+    }
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+
+  /* Main Panel Cliente */
+  main {
+    flex: 1;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    background: #f4f4f9;
+
+    h1 {
+      margin-bottom: 1.5rem;
+      color: #083880;
+    }
+
+    /* Buscador */
+    .search-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+
+      input {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        outline: none;
+
+        &:focus {
+          border-color: #139478;
+          box-shadow: 0 0 5px rgba(19, 148, 120, 0.4);
+        }
+      }
+
+      button {
+        background: #139478;
+        color: #fff;
+        border: none;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.3s ease;
+
+        &:hover {
+          background: #0f7a5d;
+        }
+      }
+    }
+
+    /* Tabla de canchas */
+    .table-container {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      overflow-x: auto;
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+
+        th, td {
+          padding: 0.8rem 1rem;
+          text-align: left;
+        }
+
+        th {
+          background: #083880;
+          color: #fff;
+          border-bottom: 2px solid #139478;
+        }
+
+        tbody tr {
+          border-bottom: 1px solid #eee;
+          transition: background 0.3s ease;
+
+          &:nth-child(even) {
+            background: #f9f9f9;
+          }
+
+          &:hover {
+            background: rgba(19, 148, 120, 0.1);
+          }
+        }
+
+        td .reserve-btn {
+          background: #139478;
+          color: #fff;
+          border: none;
+          padding: 0.4rem 0.8rem;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: bold;
+          transition: background 0.3s ease;
+
+          &:hover {
+            background: #0f7a5d;
+          }
+        }
+      }
+
+      .no-results {
+        text-align: center;
+        margin-top: 1rem;
+        color: #555;
+        font-style: italic;
+      }
+    }
+
+    /* Modal de reserva */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+
+      .modal {
+        background: #fff;
+        padding: 2rem;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 450px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+
+        h2 {
+          margin-bottom: 1rem;
+          color: #083880;
+          text-align: center;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          margin-bottom: 1rem;
+
+          label {
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+          }
+
+          input {
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+
+            &:focus {
+              border-color: #139478;
+              box-shadow: 0 0 5px rgba(19, 148, 120, 0.4);
+            }
+          }
+        }
+
+        .form-actions {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 1.5rem;
+
+          button {
+            flex: 1;
+            margin: 0 0.2rem;
+            padding: 0.6rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s ease;
+
+            &:first-child {
+              background: #139478;
+              color: #fff;
+
+              &:hover {
+                background: #0f7a5d;
+              }
+            }
+
+            &:last-child {
+              background: #ccc;
+              color: #333;
+
+              &:hover {
+                background: #aaa;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    /* Contador reserva pendiente */
+    .reservation-timer {
+      margin-top: 1rem;
+      background: #fff3e0;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      color: #ff9800;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      button {
+        background: #ff9800;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 0.4rem 0.8rem;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.3s ease;
+
+        &:hover {
+          background: #e68900;
+        }
+      }
+    }
+  }
+
+
+}

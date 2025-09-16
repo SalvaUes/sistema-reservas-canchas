@@ -1,0 +1,20 @@
+<div class="invoice-card">
+  <h2>Detalle de Facturación</h2>
+
+  <div class="invoice-content">
+    <p><strong>Factura:</strong> {{ data.invoice.invoiceNumber }}</p>
+    <p><strong>Reserva ID:</strong> {{ data.invoice.reservationCode }}</p>
+    <p><strong>Monto:</strong> ${{ data.invoice.amount }}</p>
+    <p><strong>Método de pago:</strong> {{ data.invoice.method }}</p>
+    <p><strong>Cliente:</strong> {{ data.invoice.customerName }}</p>
+    <p><strong>Email:</strong> {{ data.invoice.customerEmail }}</p>
+    <p><strong>Teléfono:</strong> {{ data.invoice.customerPhone }}</p>
+    <p><strong>Estado del pago:</strong> {{ data.invoice.status }}</p>
+    <p><strong>Fecha de pago:</strong> {{ data.invoice.paymentDate | date:'short' }}</p>
+  </div>
+
+  <div class="invoice-actions">
+    <button mat-raised-button color="primary" (click)="downloadPDF()">Descargar PDF</button>
+    <button mat-stroked-button (click)="dialogRef.close()">Cerrar</button>
+  </div>
+</div>

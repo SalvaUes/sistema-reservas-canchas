@@ -1,0 +1,107 @@
+<div class="dashboard">
+  <!-- Barra lateral -->
+  <aside
+    class="side-panel"
+    [class.closed]="isSidePanelClosed"
+    (mouseenter)="hoverPanel(true)"
+    (mouseleave)="hoverPanel(false)"
+  >
+    <button class="toggle-btn" (click)="toggleSidePanel()">
+      {{ isSidePanelClosed ? '☰' : '✕' }}
+    </button>
+    <h2 [class.hidden]="isSidePanelClosed">Reservas</h2>
+
+    <nav>
+      <a routerLink="/cliente" routerLinkActive="active" matTooltip="Inicio">
+        <i class="fas fa-home"></i>
+        <span [class.hidden]="isSidePanelClosed">Inicio</span>
+      </a>
+      <a routerLink="/cliente/canchas" routerLinkActive="active" matTooltip="Canchas">
+        <i class="fas fa-futbol"></i>
+        <span [class.hidden]="isSidePanelClosed">Canchas</span>
+      </a>
+      <a routerLink="/cliente/mis-reservas" routerLinkActive="active" matTooltip="Mis Reservas">
+        <i class="fas fa-calendar-check"></i>
+        <span [class.hidden]="isSidePanelClosed">Mis Reservas</span>
+      </a>
+    </nav>
+
+    <div class="user-info" [class.hidden]="isSidePanelClosed">
+      <p>{{ userEmail }}</p>
+      <p>{{ userRole }}</p>
+    </div>
+
+    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      <span [class.hidden]="isSidePanelClosed">Salir</span>
+    </button>
+  </aside>
+
+  <!-- Contenido principal -->
+  <main [class.closed]="isSidePanelClosed">
+    <section class="reservas-section">
+      <h1>Mis Reservas</h1>
+
+      <div class="search-bar">
+        <input
+          type="text"
+          placeholder="Buscar reserva por cancha o fecha..."
+          [(ngModel)]="searchTerm"
+        />
+      </div>
+
+      <div class="table-container">
+        <table class="reservas-table">
+          <thead>
+            <tr>
+              <th>Cancha</th>
+              <th>Fecha</th>
+              <th>Inicio</th>
+              <th>Fin</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of filteredReservations" [class.pending]="r.status === 'PENDING'">
+              <td>{{ r.courtName }}</td>
+              <td>{{ r.date }}</td>
+              <td>{{ r.startTime }}</td>
+              <td>{{ r.endTime }}</td>
+              <td>
+                {{ r.status === 'PENDING' ? 'Pendiente' : (r.status === 'CONFIRMED' ? 'Confirmada' : r.status) }}
+                <span *ngIf="r.status === 'PENDING'">⚡ Reserva pendiente</span>
+              </td>
+              <td>
+                <button
+                  *ngIf="r.status === 'PENDING'"
+                  class="confirm-btn"
+                  (click)="confirmReservation(r.id)">
+                  Confirmar Reserva
+                </button>
+
+                <button
+                  *ngIf="r.status === 'PENDING'"
+                  class="cancel-btn"
+                  (click)="cancelReservation(r.id)">
+                  Cancelar Reserva
+                </button>
+
+                <button
+                  *ngIf="r.status === 'CONFIRMED'"
+                  class="invoice-btn"
+                  (click)="viewInvoice(r.id)">
+                  Ver Facturación
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div *ngIf="hasPendingReservations" class="pending-banner">
+          ⚡ Tienes reservas pendientes. Por favor confirma para asegurar tu espacio.
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

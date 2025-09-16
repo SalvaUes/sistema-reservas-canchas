@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine # Imagen ligera de PostgreSQL
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: postgres     # Nombre de la base de datos que se creará al iniciar
+      POSTGRES_USER: postgres    # Usuario por defecto
+      POSTGRES_PASSWORD: postgres # Contraseña por defecto
+    ports:
+      - "5432:5432" # Mapea el puerto 5432 del contenedor al 5432 de tu máquina local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persistencia de datos
+
+volumes:
+  postgres_data: # Volumen con nombre para que los datos sobrevivan al reiniciar el contenedor

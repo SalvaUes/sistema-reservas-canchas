@@ -33,29 +33,12 @@
 
 ## 💻 Pasos para levantar el proyecto
 #### ⚙️ Esto se debe realizar en consola o terminal de nuestro editor de código
-**Descripción:** Ir a la ruta \sistema-reservas-canchas-main\backend
+**Descripción:** En la carpeta principal:
 ```bash
-# Dockerizar el proyecto (Esto levanta los contenedores del backend y Postgres):
+# Dockerizar el proyecto (Esto levanta los contenedores del backend, frontend y Postgres):
 docker-compose up --build
 ```
-![](imgs/commDocker.png)
----
-
-**Descripción:** Ir a la ruta \sistema-reservas-canchas-main\backend
-```bash
-# Levantar el backend:
-mvn clean spring-boot:run
-```
-![](imgs/commBackend.png)
----
-
-**Descripción:** Ir a la ruta \sistema-reservas-canchas-main\sistema-reservas\frontend
-```bash
-# Levantar el frontend Angular:
-npm install @angular/cli
-ng serve
-```
-![](imgs/commAngular.png)
+![](imgs/proyectoDocker.png)
 ---
 
 ## 📁 Capturas del proyecto funcionando

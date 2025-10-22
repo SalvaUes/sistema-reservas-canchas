@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: springboot-backend
+    depends_on:
+      - db
+    env_file:
+      - .env_local        # <--- aquí le indicamos que lea las variables del archivo local
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./sistema-reservas/frontend
+    container_name: angular-frontend
+    depends_on:
+      - backend
+    env_file:
+      - .env_local        # <--- igual para el frontend
+    ports:
+      - "4200:4200"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: springboot-backend
+    env_file:
+      - .env_production
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./sistema-reservas/frontend
+    container_name: angular-frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:4200"
+    environment:
+      - API_URL=http://localhost:8080
+
+volumes:
+  postgres_data:

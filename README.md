@@ -35,8 +35,17 @@
 #### ⚙️ Esto se debe realizar en consola o terminal de nuestro editor de código
 **Descripción:** En la carpeta principal:
 ```bash
-# Dockerizar el proyecto (Esto levanta los contenedores del backend, frontend y Postgres):
-docker-compose up --build
+# Dockerizar el proyecto local (Esto levanta los contenedores del backend, frontend y Postgres):
+docker compose -f docker-compose_local.yml up --build
+
+# Dockerizar el proyecto produccion (Esto levanta los contenedores del backend y frontend):
+docker compose -f docker-compose_production.yml up --build
+
+# En caso de requerir eliminar el contenedor local:
+docker compose -f docker-compose_local.yml down -v
+
+# En caso de requerir eliminar el contenedor local:
+docker-compose -f docker-compose_production.yml down -v
 ```
 ![](imgs/proyectoDocker.png)
 ---

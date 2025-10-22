@@ -1,13 +1,27 @@
-# Etapa 1: build con Maven
-FROM maven:3.9.6-eclipse-temurin-17 AS build
+# ================================
+# Etapa 1: Build con Maven
+# ================================
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
+
+# Compila sin ejecutar tests para ahorrar tiempo
 RUN mvn clean package -DskipTests
 
-# Etapa 2: runtime con JDK ligero
-FROM eclipse-temurin:17-jdk-alpine
+# ================================
+# Etapa 2: Runtime (JRE Alpine)
+# ================================
+FROM eclipse-temurin:17-jre-alpine
+
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+
+# Copiamos solo el JAR generado
+COPY --from=builder /app/target/*.jar app.jar
+
+# Exponemos el puerto 8080 (sin cambios)
 EXPOSE 8080
+
+# Ejecutar la app
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,16 +1,32 @@
-FROM node:20-alpine
+# ================================
+# Etapa 1: Build de Angular
+# ================================
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Instalar dependencias
+# Copiar dependencias primero para aprovechar el cache
 COPY package*.json ./
+RUN npm ci
 RUN npm install -g @angular/cli
-RUN npm install
 
-# Copiar el resto del código
+# Copiar el resto del código fuente
 COPY . .
 
-# Exponer el puerto por defecto de Angular
+# ================================
+# Etapa 2: Runtime con Node (ng serve)
+# ================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copiar desde el builder solo lo necesario
+COPY --from=builder /app /app
+
+# Instalar Angular CLI globalmente para poder ejecutar ng serve
+RUN npm install -g @angular/cli
+
 EXPOSE 4200
 
-# Ejecutar Angular en modo dev
+# Comando de inicio
 CMD ["ng", "serve", "--host", "0.0.0.0", "--port", "4200"]

@@ -27,6 +27,8 @@ interface ReservationDTO {
   previousStatus?: string; // Para controlar reactivación
 }
 
+type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'FINISHED' | 'CANCELLED' | '';
+
 @Component({
   selector: 'app-reservas',
   standalone: true,
@@ -41,7 +43,7 @@ export class ReservasComponent implements OnInit {
   courts: CourtDTO[] = [];
 
   searchTerm = '';
-  filterStatus: string = '';
+  filterStatus: ReservationStatus = '';
   sortDirection: 'asc' | 'desc' = 'asc';
   showForm = false;
   editMode = false;
@@ -131,31 +133,35 @@ export class ReservasComponent implements OnInit {
   }
 
   filterReservations() {
+    let results = this.reservations;
     const term = this.searchTerm.toLowerCase();
   
-    // Filtrar por término de búsqueda (usuario, cancha, fecha, código)
-    let results = this.reservations.filter(
-      r =>
+    // Filtro por termino de busqueda
+    if (term) {
+      results = results.filter(r =>
         r.userFullName.toLowerCase().includes(term) ||
         r.courtName.toLowerCase().includes(term) ||
         r.date.includes(term) ||
         r.code.toLowerCase().includes(term)
-    );
+      );
+    }
   
-    // Filtrar por estado (si se seleccionó alguno)
+    // Filtro por estado
     if (this.filterStatus) {
       results = results.filter(r => r.status === this.filterStatus);
     }
   
-    // Ordenar por fecha según dirección actual
+    // Ordenamiento
     results.sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
       return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
     });
   
+    // Asignación final
     this.filteredReservations = results;
   }
+  
   
   toggleSortByDate() {
     this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';

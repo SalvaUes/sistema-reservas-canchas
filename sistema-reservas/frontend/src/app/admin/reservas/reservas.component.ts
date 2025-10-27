@@ -27,6 +27,8 @@ interface ReservationDTO {
   previousStatus?: string; // Para controlar reactivación
 }
 
+type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'FINISHED' | 'CANCELLED' | '';
+
 @Component({
   selector: 'app-reservas',
   standalone: true,
@@ -41,6 +43,8 @@ export class ReservasComponent implements OnInit {
   courts: CourtDTO[] = [];
 
   searchTerm = '';
+  filterStatus: ReservationStatus = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
   showForm = false;
   editMode = false;
   editingReservationId: string | null = null;
@@ -129,13 +133,39 @@ export class ReservasComponent implements OnInit {
   }
 
   filterReservations() {
+    let results = this.reservations;
     const term = this.searchTerm.toLowerCase();
-    this.filteredReservations = this.reservations.filter(
-      r => r.userFullName.toLowerCase().includes(term)
-        || r.courtName.toLowerCase().includes(term)
-        || r.date.includes(term)
-        || r.code.toLowerCase().includes(term)  // <-- búsqueda por código
-    );
+  
+    // Filtro por termino de busqueda
+    if (term) {
+      results = results.filter(r =>
+        r.userFullName.toLowerCase().includes(term) ||
+        r.courtName.toLowerCase().includes(term) ||
+        r.date.includes(term) ||
+        r.code.toLowerCase().includes(term)
+      );
+    }
+  
+    // Filtro por estado
+    if (this.filterStatus) {
+      results = results.filter(r => r.status === this.filterStatus);
+    }
+  
+    // Ordenamiento
+    results.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  
+    // Asignación final
+    this.filteredReservations = results;
+  }
+  
+  
+  toggleSortByDate() {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    this.filterReservations();
   }
 
   canShowInvoice(res: ReservationDTO): boolean {

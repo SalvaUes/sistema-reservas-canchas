@@ -41,6 +41,8 @@ export class ReservasComponent implements OnInit {
   courts: CourtDTO[] = [];
 
   searchTerm = '';
+  filterStatus: string = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
   showForm = false;
   editMode = false;
   editingReservationId: string | null = null;
@@ -130,12 +132,34 @@ export class ReservasComponent implements OnInit {
 
   filterReservations() {
     const term = this.searchTerm.toLowerCase();
-    this.filteredReservations = this.reservations.filter(
-      r => r.userFullName.toLowerCase().includes(term)
-        || r.courtName.toLowerCase().includes(term)
-        || r.date.includes(term)
-        || r.code.toLowerCase().includes(term)  // <-- búsqueda por código
+  
+    // Filtrar por término de búsqueda (usuario, cancha, fecha, código)
+    let results = this.reservations.filter(
+      r =>
+        r.userFullName.toLowerCase().includes(term) ||
+        r.courtName.toLowerCase().includes(term) ||
+        r.date.includes(term) ||
+        r.code.toLowerCase().includes(term)
     );
+  
+    // Filtrar por estado (si se seleccionó alguno)
+    if (this.filterStatus) {
+      results = results.filter(r => r.status === this.filterStatus);
+    }
+  
+    // Ordenar por fecha según dirección actual
+    results.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  
+    this.filteredReservations = results;
+  }
+  
+  toggleSortByDate() {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    this.filterReservations();
   }
 
   canShowInvoice(res: ReservationDTO): boolean {

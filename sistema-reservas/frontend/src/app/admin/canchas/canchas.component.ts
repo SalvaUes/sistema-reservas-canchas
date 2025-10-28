@@ -90,7 +90,7 @@ export class CanchasAdminComponent implements OnInit {
   }
 
   loadCourts() {
-    this.http.get<CourtDTO[]>(API_URL).subscribe(res => {
+    this.http.get<CourtDTO[]>(API_URL).subscribe((res: CourtDTO[]) => {
       this.courts = res;
       this.filterCourts();
     });
@@ -169,33 +169,33 @@ export class CanchasAdminComponent implements OnInit {
     if (!this.editMode) {
       // Crear cancha
       this.http.post<CourtDTO>(API_URL, payload).subscribe({
-        next: court => {
+        next: (court: CourtDTO) => {
           this.courts.push(court);
           this.filterCourts();
           this.cancelForm();
           this.showMessage(`Cancha "${court.name}" creada con éxito.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al crear la cancha. Intente nuevamente.');
         }
       });
     } else if (this.editingCourtId) {
       // Editar cancha
-      this.http.put<CourtDTO>(`${API_URL}/${this.editingCourtId}`, payload.subscribe({
-        next: court => {
+      this.http.put<CourtDTO>(`${API_URL}/${this.editingCourtId}`, payload).subscribe({
+        next: (court: CourtDTO) => {
           const index = this.courts.findIndex(c => c.id === this.editingCourtId);
           if (index !== -1) this.courts[index] = court;
           this.filterCourts();
           this.cancelForm();
           this.showMessage(`Cancha "${court.name}" actualizada correctamente.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al actualizar la cancha. Intente nuevamente.');
         }
       });
-    }
+    }    
   }
 
   deleteCourt(courtId: string) {
@@ -215,7 +215,7 @@ export class CanchasAdminComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe((result: boolean) => {
       if (!result) return;
 
       this.http.delete(`${API_URL}/${courtId}`, { headers: { userRole: this.userRole } })
@@ -225,7 +225,7 @@ export class CanchasAdminComponent implements OnInit {
             this.filterCourts();
             this.showMessage(`Cancha "${court.name}" eliminada correctamente.`);
           },
-          error: err => {
+          error: (err: any) => {
             console.error(err);
             this.showMessage('Ocurrió un error al eliminar la cancha. Intente nuevamente.');
           }

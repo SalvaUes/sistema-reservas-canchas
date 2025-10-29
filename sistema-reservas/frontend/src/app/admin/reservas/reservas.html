@@ -51,12 +51,26 @@
       <div class="usuarios-header">
         <input
           type="text"
-          placeholder="Buscar por usuario, cancha o fecha..."
+          placeholder="Buscar por usuario, cancha o código..."
           [(ngModel)]="searchTerm"
           (input)="filterReservations()"
           autocomplete="off"
           spellcheck="false"
         />
+      
+        <label for="filterStatus">Estado:</label>
+        <select
+          id="filterStatus"
+          [(ngModel)]="filterStatus"
+          (change)="filterReservations()"
+        >
+          <option value="">Todos</option>
+          <option value="PENDING">Pendiente</option>
+          <option value="CONFIRMED">Confirmada</option>
+          <option value="FINISHED">Finalizada</option>
+          <option value="CANCELLED">Cancelada</option>
+        </select>
+      
         <button class="add-btn" (click)="openForm(false)">
           Añadir Reservación
         </button>
@@ -121,7 +135,11 @@
               <th>Código</th>
               <th>Usuario</th>
               <th>Cancha</th>
-              <th>Fecha</th>
+              <th (click)="toggleSortByDate()" style="cursor: pointer;">
+                Fecha
+                <span *ngIf="sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortDirection === 'desc'">▼</span>
+              </th>
               <th>Inicio</th>
               <th>Fin</th>
               <th>Estado</th>

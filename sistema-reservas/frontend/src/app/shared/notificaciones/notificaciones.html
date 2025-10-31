@@ -1,7 +1,11 @@
-<div class="notification-container" *ngIf="visible">
-  <div class="notification" [ngClass]="notification?.type">
-    <span>{{ notification?.message }}</span>
-    <button class="close-btn" (click)="close()">✖</button>
-    <div class="progress-bar" [style.width.%]="progress"></div>
+<div class="notification-container">
+  <div
+    class="notification"
+    *ngFor="let n of notifications"
+    [ngClass]="n.type"
+  >
+    <span class="message">{{ n.message }}</span>
+    <button class="close-btn" (click)="close(n)">✖</button>
+    <div class="progress-bar" [style.width.%]="n.progress"></div>
   </div>
 </div>

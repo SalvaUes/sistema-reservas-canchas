@@ -76,11 +76,40 @@ export class MisReservasComponent implements OnInit, OnDestroy {
 
     this.http.get<ReservationDTO[]>(`http://localhost:8080/api/reservations/user/${userId}`)
       .subscribe(res => {
-        this.reservations = res;
+        // Convertir horas de UTC a hora local
+        this.reservations = res.map(r => {
+        // Combina fecha y hora
+        const start = new Date(`${r.date}T${r.startTime}`);
+        const end   = new Date(`${r.date}T${r.endTime}`);
 
+        r.startTime = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+        r.endTime   = end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+        return r;
+      });
+
+        // Buscar reserva pendiente
         const pending = this.reservations.find(r => r.status === 'PENDING');
+
         if (pending) {
-            const remaining = this.pendingService.getRemainingTime(pending.id) ?? 60000;
+          const active = this.pendingService.getActiveReservation();
+          const remaining = this.pendingService.getRemainingTime(pending.id) ?? 3 * 60 * 1000;
+
+          if (!active) {
+            // No hay reserva activa → crearla
+            this.pendingService.startPendingReservation(
+              pending.id,
+              pending.code,
+              remaining,
+              pending.courtName,
+              pending.startTime,
+              pending.endTime
+            );
+          } else if (
+            active.reservationId === pending.id &&
+            (active.startTime !== pending.startTime || active.endTime !== pending.endTime)
+          ) {
+            // 🔄 Las horas fueron actualizadas → refrescar snackbar
+            console.log('🕒 Actualizando horario de reserva pendiente...');
             this.pendingService.startPendingReservation(
               pending.id,
               pending.code,
@@ -90,7 +119,7 @@ export class MisReservasComponent implements OnInit, OnDestroy {
               pending.endTime
             );
           }
-
+        }
       });
   }
 
@@ -180,11 +209,11 @@ export class MisReservasComponent implements OnInit, OnDestroy {
   }
 
   cancelReservation(reservationId: string) {
-    this.http.delete(`http://localhost:8080/api/reservations/${reservationId}`, { observe: 'response' })
+    this.http.delete(`http://localhost:8080/api/reservations/${reservationId}/cancel`, { observe: 'response' })
       .subscribe({
         next: (res) => {
           if (res.status === 204) {
-            this.notificationService.show('Reserva cancelada correctamente', 'success');
+            this.notificationService.show('Reserva cancelada correctamente', 'error');
             this.pendingService.cancelReservation(); // limpiar snackbar/localStorage
             this.loadUserReservations();
           }

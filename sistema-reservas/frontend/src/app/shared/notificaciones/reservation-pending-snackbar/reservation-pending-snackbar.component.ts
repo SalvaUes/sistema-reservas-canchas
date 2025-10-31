@@ -2,6 +2,8 @@ import { Component, EventEmitter, Inject, NgZone, Output } from '@angular/core';
 import { MAT_SNACK_BAR_DATA, MatSnackBarRef } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon'; // ✅ Importar esto
+import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 
 export interface PendingSnackbarData {
@@ -10,7 +12,7 @@ export interface PendingSnackbarData {
   courtName: string;
   startTime: string;
   endTime: string;
-  expireAt: number; // Tiempo absoluto de expiración
+  expireAt: number;
 }
 
 @Component({
@@ -18,14 +20,22 @@ export interface PendingSnackbarData {
   templateUrl: './reservation-pending-snackbar.component.html',
   styleUrls: ['./reservation-pending-snackbar.component.scss'],
   standalone: true,
-  imports: [MatProgressBarModule, MatButtonModule]
+  imports: [
+    CommonModule,
+    MatProgressBarModule,
+    MatButtonModule,
+    MatIconModule // ✅ AÑADIDO AQUÍ
+  ]
 })
 export class ReservationPendingSnackbarComponent {
-  progress = 100;
-  remainingSeconds = 0; // inicializamos
   @Output() cancelClicked = new EventEmitter<void>();
 
-  private interval: any;
+  progress = 100;
+  remainingSeconds = 0;
+  minimized = false;
+
+  private interval?: any;
+  private readonly totalDuration: number;
 
   constructor(
     @Inject(MAT_SNACK_BAR_DATA) public data: PendingSnackbarData,
@@ -33,42 +43,37 @@ export class ReservationPendingSnackbarComponent {
     private ngZone: NgZone,
     private router: Router
   ) {
-    this.updateRemaining(); // inicializamos tiempo restante real
+    this.totalDuration = data.expireAt - Date.now();
+    this.updateRemaining();
     this.startProgress();
   }
 
   private startProgress() {
     if (this.interval) clearInterval(this.interval);
-
     this.interval = setInterval(() => {
       this.ngZone.run(() => this.updateRemaining());
     }, 1000);
   }
 
-  /** Calcula tiempo restante y actualiza barra */
   updateRemaining(remainingMs?: number) {
-    if (remainingMs === undefined) {
-      remainingMs = this.data.expireAt - Date.now();
-    }
-
+    if (remainingMs === undefined) remainingMs = this.data.expireAt - Date.now();
     if (remainingMs <= 0) {
       this.close();
       return;
     }
-
     this.remainingSeconds = Math.ceil(remainingMs / 1000);
-    this.progress = (remainingMs / (this.data.expireAt - (this.data.expireAt - remainingMs))) * 100;
+    this.progress = Math.max(0, (remainingMs / this.totalDuration) * 100);
+  }
+
+  toggleMinimize() {
+    this.minimized = !this.minimized;
   }
 
   close(navigate = true) {
     if (this.interval) clearInterval(this.interval);
     this.cancelClicked.emit();
-
-    // Solo navegar, no reiniciar reserva
     if (navigate) {
       this.ngZone.run(() => this.router.navigate(['/cliente/mis-reservas']));
     }
   }
-
 }
-

@@ -36,6 +36,7 @@ public class UserController {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    // Obtener todos los usuarios
     @GetMapping
     public List<UserDTO> getAllUsers() {
         return userRepository.findAll()
@@ -44,6 +45,7 @@ public class UserController {
                 .collect(Collectors.toList());
     }
 
+    // Obtener usuario por ID
     @GetMapping("/{id}")
     public UserDTO getUserById(@PathVariable Long id) {
         User user = userRepository.findById(id)
@@ -51,10 +53,11 @@ public class UserController {
         return new UserDTO(user);
     }
 
+    // Crear nuevo usuario
     @PostMapping
     public UserDTO createUser(@RequestBody UserRequestDTO request) {
         // Validar email único
-        if(userRepository.findByEmail(request.getEmail()).isPresent()) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("El email ya está registrado: " + request.getEmail());
         }
 
@@ -63,8 +66,6 @@ public class UserController {
         user.setLastName(request.getLastName());
         user.setEmail(request.getEmail());
         user.setPhoneNumber(request.getPhoneNumber());
-
-        // Hash de contraseña
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         // Asignar rol
@@ -73,10 +74,14 @@ public class UserController {
         user.getRoles().clear();
         user.getRoles().add(role);
 
+        // Estado por defecto: ACTIVO
+        user.setStatus("ACTIVE");
+
         User savedUser = userRepository.save(user);
         return new UserDTO(savedUser);
     }
 
+    // Actualizar usuario
     @PutMapping("/{id}")
     public UserDTO updateUser(@PathVariable Long id, @RequestBody UserRequestDTO request) {
         User user = userRepository.findById(id)
@@ -87,28 +92,50 @@ public class UserController {
         user.setEmail(request.getEmail());
         user.setPhoneNumber(request.getPhoneNumber());
 
-        // Actualizar contraseña solo si se envía
-        if(request.getPassword() != null && !request.getPassword().isEmpty()) {
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        // Actualizar rol
-        if(request.getRoleName() != null && !request.getRoleName().isEmpty()) {
+        if (request.getRoleName() != null && !request.getRoleName().isEmpty()) {
             Role role = roleRepository.findByName(request.getRoleName())
                     .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + request.getRoleName()));
             user.getRoles().clear();
             user.getRoles().add(role);
         }
 
+        if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+            user.setStatus(request.getStatus());
+        }
+
         User savedUser = userRepository.save(user);
         return new UserDTO(savedUser);
     }
 
+    // Desactivar usuario (en lugar de eliminar)
     @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id, @RequestHeader("userRole") String userRole) {
+    public void deactivateUser(@PathVariable Long id, @RequestHeader("userRole") String userRole) {
         if (!"ADMIN".equals(userRole)) {
-            throw new RuntimeException("No tienes permisos para eliminar usuarios.");
+            throw new RuntimeException("No tienes permisos para desactivar usuarios.");
         }
-        userRepository.deleteById(id);
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
+
+        user.setStatus("INACTIVE");
+        userRepository.save(user);
+    }
+
+    // Activar usuario
+    @PutMapping("/{id}/activate")
+    public void activateUser(@PathVariable Long id, @RequestHeader("userRole") String userRole) {
+        if (!"ADMIN".equals(userRole)) {
+            throw new RuntimeException("No tienes permisos para activar usuarios.");
+        }
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
+
+        user.setStatus("ACTIVE");
+        userRepository.save(user);
     }
 }

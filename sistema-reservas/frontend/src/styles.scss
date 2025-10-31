@@ -1,9 +1,7 @@
+// ========================================
+// 🌈 Angular Material 3 Theming
+// ========================================
 
-// Include theming for Angular Material with `mat.theme()`.
-// This Sass mixin will define CSS variables that are used for styling Angular Material
-// components according to the Material 3 design spec.
-// Learn more about theming and how to use it for your application's
-// custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
 html {
@@ -17,57 +15,96 @@ html {
   ));
 }
 
+// ========================================
+// 🧱 Base global styles
+// ========================================
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
 body {
-  // Default the application to a light color theme. This can be changed to
-  // `dark` to enable the dark color theme, or to `light dark` to defer to the
-  // user's system settings.
+  // Default color scheme (can switch to `dark` or `light dark` for system preference)
   color-scheme: light;
 
-  // Set a default background, font and text colors for the application using
-  // Angular Material's system-level CSS variables. Learn more about these
-  // variables at https://material.angular.dev/guide/system-variables
+  // Set Material system-level colors and typography
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
-
-  // Reset the user agent margin.
-  margin: 0;
 }
-/* You can add global styles to this file, and also import other style files */
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+// ========================================
+// 🔔 Snackbar styles (Reserva pendiente)
+// ========================================
 
-/* Estilo para snackbar de reserva pendiente */
+/* Estilo principal del snackbar informativo */
 .reservation-snackbar {
-  background-color: #1976d2;
+  background-color: #1976d2; // azul primario
   color: #fff;
   font-weight: 500;
   font-size: 14px;
   border-radius: 8px;
   padding: 16px 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-width: 320px;
   max-width: 500px;
   line-height: 1.4;
+  transition: all 0.3s ease-in-out;
 
   button {
     color: #fff;
     font-weight: bold;
     text-transform: uppercase;
     margin-left: 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.85;
+    }
   }
 }
 
+/* Efecto de parpadeo para avisos importantes */
 .blinking-snackbar {
   animation: blink 1.5s infinite;
 }
 
 @keyframes blink {
-  0%,50%,100% { opacity: 1; }
-  25%,75% { opacity: 0.5; }
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.5; }
 }
 
+// ========================================
+// 🧩 Ajustes globales para overlays (Material Snackbar)
+// ========================================
+
+/* Quita el fondo oscuro que Angular Material agrega por defecto */
+.mat-mdc-snack-bar-container.pending-snackbar-panel {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Elimina cualquier sombra del overlay */
+.cdk-overlay-pane {
+  box-shadow: none !important;
+}
+
+/* Fuerza transparencia si Material aún aplica color interno */
+.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Hace transparente el backdrop (fondo difuminado al mostrar el snackbar) */
+.cdk-overlay-backdrop {
+  background-color: transparent !important;
+}

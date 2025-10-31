@@ -1,19 +1,27 @@
 package com.reservas.backend.dto;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.reservas.backend.model.Reservation;
 
 public class ReservationDTO {
 
-    private UUID id;           // UUID interno
-    private String code;       // Código legible R-XXXXXXX
+    private UUID id;
+    private String code;
     private LocalDate date;
+
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
+
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
     private String status;
 
@@ -26,10 +34,10 @@ public class ReservationDTO {
     private Long userId;
     private String userFullName;
 
-    public ReservationDTO() {
-        // Constructor vacío necesario para Jackson u otros frameworks
-    }
+    // Constructor vacío para Jackson
+    public ReservationDTO() {}
 
+    // Constructor desde entidad
     public ReservationDTO(Reservation reservation) {
         this.id = reservation.getId();
         this.code = reservation.getCode();
@@ -47,24 +55,47 @@ public class ReservationDTO {
 
         if (reservation.getUser() != null) {
             this.userId = reservation.getUser().getId();
-            this.userFullName = 
-                (reservation.getUser().getFirstName() != null ? reservation.getUser().getFirstName() : "")
-                + " "
-                + (reservation.getUser().getLastName() != null ? reservation.getUser().getLastName() : "");
+            this.userFullName = String.join(" ",
+                    reservation.getUser().getFirstName() != null ? reservation.getUser().getFirstName() : "",
+                    reservation.getUser().getLastName() != null ? reservation.getUser().getLastName() : ""
+            ).trim();
         }
 
-        this.totalPrice = calculateTotalPrice();
+        updateTotalPrice();
     }
 
-    private BigDecimal calculateTotalPrice() {
-        if (startTime == null || endTime == null || pricePerHour == null) return BigDecimal.ZERO;
+    // Recalcula totalPrice
+    private void updateTotalPrice() {
+        if (startTime == null || endTime == null || pricePerHour == null) {
+            this.totalPrice = BigDecimal.ZERO;
+            return;
+        }
         long minutes = Duration.between(startTime, endTime).toMinutes();
         BigDecimal hours = BigDecimal.valueOf(minutes)
-                                     .divide(BigDecimal.valueOf(60), 2, BigDecimal.ROUND_HALF_UP);
-        return pricePerHour.multiply(hours);
+                                     .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        this.totalPrice = pricePerHour.multiply(hours);
     }
 
-    // Getters y Setters
+    // Getters y setters con actualización automática de totalPrice
+    public LocalTime getStartTime() { return startTime; }
+    public void setStartTime(LocalTime startTime) { 
+        this.startTime = startTime; 
+        updateTotalPrice();
+    }
+
+    public LocalTime getEndTime() { return endTime; }
+    public void setEndTime(LocalTime endTime) { 
+        this.endTime = endTime; 
+        updateTotalPrice();
+    }
+
+    public BigDecimal getPricePerHour() { return pricePerHour; }
+    public void setPricePerHour(BigDecimal pricePerHour) { 
+        this.pricePerHour = pricePerHour; 
+        updateTotalPrice();
+    }
+
+    // Resto de getters/setters
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -73,18 +104,6 @@ public class ReservationDTO {
 
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
-
-    public LocalTime getStartTime() { return startTime; }
-    public void setStartTime(LocalTime startTime) { 
-        this.startTime = startTime; 
-        this.totalPrice = calculateTotalPrice(); 
-    }
-
-    public LocalTime getEndTime() { return endTime; }
-    public void setEndTime(LocalTime endTime) { 
-        this.endTime = endTime; 
-        this.totalPrice = calculateTotalPrice(); 
-    }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
@@ -98,12 +117,6 @@ public class ReservationDTO {
     public String getCourtName() { return courtName; }
     public void setCourtName(String courtName) { this.courtName = courtName; }
 
-    public BigDecimal getPricePerHour() { return pricePerHour; }
-    public void setPricePerHour(BigDecimal pricePerHour) { 
-        this.pricePerHour = pricePerHour; 
-        this.totalPrice = calculateTotalPrice(); 
-    }
-
     public BigDecimal getTotalPrice() { return totalPrice; }
 
     public Long getUserId() { return userId; }
@@ -111,4 +124,15 @@ public class ReservationDTO {
 
     public String getUserFullName() { return userFullName; }
     public void setUserFullName(String userFullName) { this.userFullName = userFullName; }
+
+    // Fechas UTC para frontend
+    public ZonedDateTime getStartDateTimeUTC() {
+        if (date == null || startTime == null) return null;
+        return ZonedDateTime.of(date, startTime, ZoneOffset.UTC);
+    }
+
+    public ZonedDateTime getEndDateTimeUTC() {
+        if (date == null || endTime == null) return null;
+        return ZonedDateTime.of(date, endTime, ZoneOffset.UTC);
+    }
 }

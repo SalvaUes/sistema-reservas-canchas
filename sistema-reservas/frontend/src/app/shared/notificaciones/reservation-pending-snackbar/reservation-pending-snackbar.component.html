@@ -1,8 +1,16 @@
-<div class="pending-snackbar">
+<div class="pending-snackbar" [class.minimized]="minimized">
+  <button class="minimize-btn" mat-icon-button (click)="toggleMinimize()">
+    <mat-icon>{{ minimized ? 'expand_less' : 'expand_more' }}</mat-icon>
+  </button>
+
+  <div class="minimized-summary">
+    ⚡ {{ data.courtName }} — {{ remainingSeconds }}s
+  </div>
+
   <div class="info">
     <h3>⚡ Reserva Pendiente</h3>
     <p>
-      <strong>Codigo de reserva:</strong> {{ data.reservationCode }}<br />
+      <strong>Código:</strong> {{ data.reservationCode }}<br />
       <strong>Cancha:</strong> {{ data.courtName }}<br />
       <strong>Hora:</strong> {{ data.startTime }} - {{ data.endTime }}
     </p>

@@ -12,19 +12,19 @@
     <h2 *ngIf="!isSidePanelClosed">Panel Admin</h2>
 
     <nav>
-      <a routerLink="/admin" routerLinkActive="active" matTooltip="Inicio">
+      <a routerLink="/admin" routerLinkActive="active">
         <i class="fas fa-home"></i>
         <span *ngIf="!isSidePanelClosed">Inicio</span>
       </a>
-      <a routerLink="/admin/usuarios" routerLinkActive="active" matTooltip="Usuarios">
+      <a routerLink="/admin/usuarios" routerLinkActive="active">
         <i class="fas fa-users"></i>
         <span *ngIf="!isSidePanelClosed">Usuarios</span>
       </a>
-      <a routerLink="/admin/canchas" routerLinkActive="active" matTooltip="Canchas">
+      <a routerLink="/admin/canchas" routerLinkActive="active">
         <i class="fas fa-futbol"></i>
         <span *ngIf="!isSidePanelClosed">Canchas</span>
       </a>
-      <a routerLink="/admin/reservas" routerLinkActive="active" matTooltip="Reservas">
+      <a routerLink="/admin/reservas" routerLinkActive="active">
         <i class="fas fa-calendar-check"></i>
         <span *ngIf="!isSidePanelClosed">Reservas</span>
       </a>
@@ -36,7 +36,7 @@
       <p>{{ userRole }}</p>
     </div>
 
-    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
+    <button class="logout-btn" (click)="logout()">
       <i class="fas fa-sign-out-alt"></i>
       <span *ngIf="!isSidePanelClosed">Cerrar sesión</span>
     </button>
@@ -48,16 +48,18 @@
       <h1>Usuarios</h1>
 
       <!-- Buscador -->
-      <div class="usuarios-header">
-        <input
+      <div class="users-toolbar">
+        <div class="search-box">
+          <input
           type="text"
-          placeholder="Buscar por nombre o email..."
+          placeholder="Buscar por nombre o email, rol, estado ..."
           [(ngModel)]="searchTerm"
           (input)="filterUsers()"
           autocomplete="new-password"
           name="userSearch"
           spellcheck="false"
         />
+      </div>
 
         <!-- Botón de añadir solo para ADMIN -->
         <button *ngIf="userRole === 'ADMIN'" class="add-btn" (click)="openForm(false)">
@@ -115,30 +117,93 @@
         </div>
       </div>
 
-      <!-- Tabla de usuarios -->
-      <div class="table-container">
-        <table class="usuarios-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Rol</th>
-              <th *ngIf="userRole === 'ADMIN'">Acciones</th> <!-- Solo ADMIN puede ver acciones -->
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let user of filteredUsers">
-              <td>{{ user.firstName }} {{ user.lastName }}</td>
-              <td>{{ user.email }}</td>
-              <td>{{ user.roles[0].name }}</td>
-              <td class="acciones" *ngIf="userRole === 'ADMIN'">
-                <button class="edit-btn" (click)="openForm(true, user)">✏️ Editar</button>
-                <button class="delete-btn" (click)="deleteUser(user.id)">🗑️ Eliminar</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p *ngIf="filteredUsers.length === 0" class="no-results">No se encontraron usuarios.</p>
-      </div>
+          <!-- Contenedor de selección global y acciones masivas -->
+          <div class="users-toolbar">
+            <!-- Checkbox global -->
+            <div class="select-global">
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  [checked]="selectAllGlobal"
+                  (change)="toggleSelectAllGlobal($event)"
+                />
+                <span>Seleccionar todos los registros</span>
+              </label>
+            </div>
+
+            <!-- Acciones masivas -->
+            <div
+              class="bulk-actions"
+              *ngIf="selectedUsers.length > 0"
+            >
+              <button
+                class="activate-btn"
+                (click)="activateSelectedUsers()"
+                [matTooltip]="selectedUsers.length === 0 ? 'No hay usuarios seleccionados para activar' : ''"
+              >
+                🔓 Activar seleccionados
+              </button>
+
+              <button
+                class="deactivate-btn"
+                (click)="deactivateSelectedUsers()"
+                [matTooltip]="selectedUsers.length === 0 ? 'No hay usuarios seleccionados para desactivar' : ''"
+              >
+                🔒 Desactivar seleccionados
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabla de usuarios -->
+          <div class="table-container">
+            <table class="usuarios-table">
+              <thead>
+                <tr>
+                  <th>
+                    <!-- Checkbox de la página -->
+                    <input type="checkbox" [checked]="selectAllPage" (change)="toggleSelectAllPage($event)">
+                  </th>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th *ngIf="userRole === 'ADMIN'">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of paginatedUsers">
+                  <td>
+                    <input type="checkbox"
+                      [checked]="selectedUsers.includes(user)"
+                      (change)="toggleSelection(user, $event)"
+                      [disabled]="user.email === userEmail">
+                  </td>
+                  <td>{{ user.firstName }} {{ user.lastName }}</td>
+                  <td>{{ user.email }}</td>
+                  <td>{{ user.roles[0]?.name }}</td>
+                  <td>
+                    <span [ngClass]="{'text-success': user.status === 'ACTIVE', 'text-danger': user.status === 'INACTIVE'}">
+                      {{ user.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td class="acciones" *ngIf="userRole === 'ADMIN'">
+                    <button class="edit-btn" (click)="openForm(true, user)" [disabled]="user.status === 'INACTIVE'">✏️ Editar</button>
+                    <button *ngIf="user.status === 'ACTIVE'" class="deactivate-btn" (click)="deactivateUser(user)">🔒 Desactivar</button>
+                    <button *ngIf="user.status === 'INACTIVE'" class="activate-btn" (click)="activateUser(user)">🔓 Reactivar</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p *ngIf="filteredUsers.length === 0" class="no-results">No se encontraron usuarios.</p>
+            <p>{{ selectedCount }} usuario(s) seleccionado(s)</p>
+
+            <!-- 📄 Controles de paginación -->
+            <div class="pagination" *ngIf="totalPages > 1">
+              <button (click)="previousPage()" [disabled]="currentPage === 1">⬅ Anterior</button>
+              <span>Página {{ currentPage }} de {{ totalPages }}</span>
+              <button (click)="nextPage()" [disabled]="currentPage === totalPages">Siguiente ➡</button>
+            </div>
+          </div>
     </section>
 </main>

@@ -12,6 +12,7 @@ public class CourtDTO {
     private String description;
     private String sportType;
     private BigDecimal pricePerHour;
+    private boolean hasReservations; // NUEVO CAMPO
 
     public CourtDTO(Court court) {
         this.id = court.getId();
@@ -20,6 +21,7 @@ public class CourtDTO {
         this.description = court.getDescription();
         this.sportType = court.getSportType();
         this.pricePerHour = court.getPricePerHour();
+        this.hasReservations = court.getReservations() != null && !court.getReservations().isEmpty();
     }
 
     // Getters y Setters
@@ -40,4 +42,7 @@ public class CourtDTO {
 
     public BigDecimal getPricePerHour() { return pricePerHour; }
     public void setPricePerHour(BigDecimal pricePerHour) { this.pricePerHour = pricePerHour; }
+
+    public boolean isHasReservations() { return hasReservations; }
+    public void setHasReservations(boolean hasReservations) { this.hasReservations = hasReservations; }
 }

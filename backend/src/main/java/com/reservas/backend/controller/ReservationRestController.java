@@ -50,16 +50,27 @@ public class ReservationRestController {
     @GetMapping
     public List<ReservationDTO> getAllReservations() {
         return reservationService.findAllReservations()
-                                 .stream()
-                                 .map(ReservationDTO::new)
-                                 .collect(Collectors.toList());
+                .stream()
+                .map(res -> {
+                    ReservationDTO dto = new ReservationDTO(res);
+                    // Ajusta horas a UTC
+                    if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+                    if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ReservationDTO> getReservationById(@PathVariable UUID id) {
         return reservationService.findReservationById(id)
-                                 .map(res -> ResponseEntity.ok(new ReservationDTO(res)))
-                                 .orElse(ResponseEntity.notFound().build());
+                .map(res -> {
+                    ReservationDTO dto = new ReservationDTO(res);
+                    if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+                    if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+                    return ResponseEntity.ok(dto);
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/court/{courtId}")
@@ -67,10 +78,53 @@ public class ReservationRestController {
             @PathVariable UUID courtId,
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return reservationService.findReservationsByCourtAndDate(courtId, date)
-                                 .stream()
-                                 .map(ReservationDTO::new)
-                                 .collect(Collectors.toList());
+                .stream()
+                .map(res -> {
+                    ReservationDTO dto = new ReservationDTO(res);
+                    if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+                    if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
+
+    @PatchMapping("/{id}/reactivate")
+    public ResponseEntity<ReservationDTO> reactivateReservation(@PathVariable UUID id) {
+        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
+        if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Reservation reservation = existingOpt.get();
+
+        // Validar que la reserva puede reactivarse
+        if (!"CANCELLED".equals(reservation.getStatus())) {
+            return ResponseEntity.badRequest().body(null);
+        }
+
+        // Verificar solapamiento
+        boolean overlapping = reservationService.findReservationsByCourtAndDate(
+                reservation.getCourt().getId(),
+                reservation.getDate()
+        ).stream()
+        .anyMatch(r -> !r.getId().equals(id) &&
+                        !"CANCELLED".equals(r.getStatus()) &&
+                        r.getStartTime().isBefore(reservation.getEndTime()) &&
+                        r.getEndTime().isAfter(reservation.getStartTime()));
+
+        if (overlapping) {
+            return ResponseEntity.badRequest().body(null);
+        }
+
+        // Reactivar
+        reservation.setStatus("PENDING");
+        Reservation updated = reservationService.saveReservation(reservation);
+
+        ReservationDTO dto = new ReservationDTO(updated);
+        if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+        if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+
+        return ResponseEntity.ok(dto);
+    }
+
 
     @PostMapping
     public ResponseEntity<Object> createReservation(@RequestBody ReservationRequest request) {
@@ -89,12 +143,15 @@ public class ReservationRestController {
             );
 
             URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-                                                     .path("/{id}")
-                                                     .buildAndExpand(newReservation.getId())
-                                                     .toUri();
+                    .path("/{id}")
+                    .buildAndExpand(newReservation.getId())
+                    .toUri();
 
-            return ResponseEntity.created(location)
-                                 .body(new ReservationDTO(newReservation));
+            ReservationDTO dto = new ReservationDTO(newReservation);
+            if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+            if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+
+            return ResponseEntity.created(location).body(dto);
 
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -128,12 +185,14 @@ public class ReservationRestController {
 
         try {
             Reservation updated = reservationService.saveReservation(reservation);
-            return ResponseEntity.ok(new ReservationDTO(updated));
+            ReservationDTO dto = new ReservationDTO(updated);
+            if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+            if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+            return ResponseEntity.ok(dto);
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(null);
         }
     }
-    
 
     @PatchMapping("/{id}/user")
     public ResponseEntity<ReservationDTO> updateReservationUser(@PathVariable UUID id,
@@ -148,7 +207,11 @@ public class ReservationRestController {
 
         reservation.setUser(user.get());
         Reservation updated = reservationService.saveReservation(reservation);
-        return ResponseEntity.ok(new ReservationDTO(updated));
+
+        ReservationDTO dto = new ReservationDTO(updated);
+        if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+        if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+        return ResponseEntity.ok(dto);
     }
 
     @GetMapping("/user/{userId}")
@@ -157,14 +220,19 @@ public class ReservationRestController {
         if (userOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         List<ReservationDTO> reservations = reservationService.findReservationsByUser(userOpt.get())
-                                                              .stream()
-                                                              .map(ReservationDTO::new)
-                                                              .collect(Collectors.toList());
+                .stream()
+                .map(res -> {
+                    ReservationDTO dto = new ReservationDTO(res);
+                    if (dto.getStartDateTimeUTC() != null) dto.setStartTime(dto.getStartDateTimeUTC().toLocalTime());
+                    if (dto.getEndDateTimeUTC() != null) dto.setEndTime(dto.getEndDateTimeUTC().toLocalTime());
+                    return dto;
+                })
+                .collect(Collectors.toList());
 
         return ResponseEntity.ok(reservations);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelReservation(@PathVariable UUID id) {
         Optional<Reservation> existing = reservationService.findReservationById(id);
         if (existing.isEmpty()) return ResponseEntity.notFound().build();
@@ -172,4 +240,22 @@ public class ReservationRestController {
         reservationService.cancelReservation(id);
         return ResponseEntity.noContent().build();
     }
+
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteReservation(@PathVariable UUID id) {
+        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
+        if (existingOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            // Aquí llamamos a la versión "Safe"
+            reservationService.deleteReservationSafe(id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
 }

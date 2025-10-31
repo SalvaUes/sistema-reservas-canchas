@@ -7,7 +7,7 @@ import { map } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 import { HttpClient } from '@angular/common/http';
 import { ReservationPendingService } from '../services/reservation-pending.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from './../shared/notificaciones/notification.service';
 
 interface ReservationDTO {
   id: string;
@@ -37,7 +37,7 @@ export class ClienteComponent implements OnInit {
     private router: Router,
     private http: HttpClient,
     private pendingService: ReservationPendingService,
-    private snackBar: MatSnackBar
+    private notificationService: NotificationService,
   ) {}
 
   ngOnInit() {
@@ -56,8 +56,13 @@ export class ClienteComponent implements OnInit {
     }
 
     // Escuchar cancelación automática de reserva
-    this.pendingService.reservationCancelled.subscribe(() => {
-      this.snackBar.open('⏱️ Tu reserva pendiente ha expirado', 'Cerrar', { duration: 5000 });
+    this.pendingService.reservationCancelled.subscribe(reason => {
+      if (reason === 'auto') {
+        this.notificationService.show(
+          '⏱️ Tu reserva pendiente ha expirado',
+          'error'
+        );
+      }
     });
   }
 

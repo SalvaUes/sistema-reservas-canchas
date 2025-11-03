@@ -7,6 +7,8 @@ import { AuthService } from '../../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ReservationPendingService } from '../../services/reservation-pending.service';
 
+const API_URL = 'http://localhost:8080/api';
+
 interface CourtDTO {
   id: string;
   code: string;
@@ -27,6 +29,7 @@ export class CanchasClienteComponent implements OnInit {
   courts: CourtDTO[] = [];
   filteredCourts: CourtDTO[] = [];
   searchTerm = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
 
   isSidePanelClosed = true;
   manualClose = false;
@@ -86,7 +89,7 @@ export class CanchasClienteComponent implements OnInit {
   }
 
   loadCourts() {
-    this.http.get<CourtDTO[]>('http://localhost:8080/api/courts').subscribe(res => {
+    this.http.get<CourtDTO[]>(`${API_URL}/courts`).subscribe((res: CourtDTO[]) => {
       this.courts = res;
       this.filteredCourts = [...this.courts];
     });
@@ -94,13 +97,29 @@ export class CanchasClienteComponent implements OnInit {
 
   filterCourts() {
     const term = this.searchTerm.toLowerCase();
-    this.filteredCourts = this.courts.filter(c =>
+  
+    let results = this.courts.filter(c =>
       c.name.toLowerCase().includes(term) ||
       c.code.toLowerCase().includes(term) ||
-      c.sportType.toLowerCase().includes(term)
+      c.sportType.toLowerCase().includes(term) ||
+      c.pricePerHour.toString().includes(term) // permite buscar por precio
     );
+  
+    // Aplica ordenamiento si corresponde
+    results.sort((a, b) =>
+      this.sortDirection === 'asc'
+        ? a.pricePerHour - b.pricePerHour
+        : b.pricePerHour - a.pricePerHour
+    );
+  
+    this.filteredCourts = results;
   }
 
+  toggleSort() {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    this.filterCourts();
+  }
+  
   search() {
     this.filterCourts();
   }
@@ -157,8 +176,8 @@ export class CanchasClienteComponent implements OnInit {
       status: 'PENDING'
     };
 
-    this.http.post<any>('http://localhost:8080/api/reservations', payload).subscribe({
-      next: reservation => {
+    this.http.post<any>(`${API_URL}/reservations`, payload).subscribe({
+      next: (reservation: any) => {
         // Solo 3 minutos para confirmar
         this.reservationPendingService.startPendingReservation(
           reservation.id,
@@ -170,7 +189,7 @@ export class CanchasClienteComponent implements OnInit {
         );
         this.closeModal();
       },
-      error: err => {
+      error: (err: any) => {
         const message = err.error || 'No se pudo crear la reserva';
         this.showError(message);
       }

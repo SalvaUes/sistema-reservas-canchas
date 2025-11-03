@@ -8,6 +8,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { AuthService } from '../../services/auth.service';
 import { ConfirmDialogComponent } from './confirm-dialog.component';
 
+const API_URL = 'http://localhost:8080/api';
+
 interface UserDTO {
   id: number;
   firstName: string;
@@ -29,6 +31,7 @@ export class UsuariosComponent implements OnInit {
   users: UserDTO[] = [];
   filteredUsers: UserDTO[] = [];
   searchTerm: string = '';
+  filterRole: string = '';
   showForm: boolean = false;
   editMode: boolean = false;
   editingUserId: number | null = null;
@@ -89,28 +92,42 @@ export class UsuariosComponent implements OnInit {
   }
 
   loadUsers() {
-    this.http.get<UserDTO[]>('http://localhost:8080/api/users').subscribe(res => {
+    this.http.get<UserDTO[]>(`${API_URL}/users`).subscribe((res: UserDTO[]) => {
       this.users = res;
       this.filterUsers();
     });
   }
 
   loadRoles() {
-    this.http.get<{ name: string }[]>('http://localhost:8080/api/roles').subscribe(res => {
-      this.roles = res.map(r => r.name);
+    this.http.get<{ name: string }[]>(`${API_URL}/roles`).subscribe((res: { name: string }[]) => {
+      this.roles = res
+      .map((r: { name: string }) => r.name)
+      .filter((name: string) => name !== 'USER'); // ocualta el rol user
+  
       if (!this.role && this.roles.length > 0) this.role = this.roles[0];
     });
   }
 
   filterUsers() {
     const term = this.searchTerm.toLowerCase();
-    this.filteredUsers = this.users.filter(
+  
+    let results = this.users.filter(
       u =>
         u.firstName.toLowerCase().includes(term) ||
         u.lastName.toLowerCase().includes(term) ||
         u.email.toLowerCase().includes(term)
     );
+  
+    // Filtrar por rol si se selecciono alguno
+    if (this.filterRole) {
+      results = results.filter(u =>
+        u.roles.some(r => r.name === this.filterRole)
+      );
+    }
+  
+    this.filteredUsers = results;
   }
+  
 
   openForm(editMode = false, user?: UserDTO) {
     this.showForm = true;
@@ -163,29 +180,29 @@ export class UsuariosComponent implements OnInit {
 
     if (!this.editMode) {
       // Crear usuario
-      this.http.post<UserDTO>('http://localhost:8080/api/users', payload).subscribe({
-        next: user => {
+      this.http.post<UserDTO>(`${API_URL}/users`, payload).subscribe({
+        next: (user: UserDTO) => {
           this.users.push(user);
           this.filterUsers();
           this.cancelForm();
           this.showMessage(`Usuario "${user.firstName} ${user.lastName}" creado con éxito.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al crear el usuario. Intente nuevamente.');
         }
       });
     } else if (this.editingUserId) {
       // Editar usuario
-      this.http.put<UserDTO>(`http://localhost:8080/api/users/${this.editingUserId}`, payload).subscribe({
-        next: user => {
+      this.http.put<UserDTO>(`${API_URL}/users/${this.editingUserId}`, payload).subscribe({
+        next: (user: UserDTO) => {
           const index = this.users.findIndex(u => u.id === this.editingUserId);
           if (index !== -1) this.users[index] = user;
           this.filterUsers();
           this.cancelForm();
           this.showMessage(`Usuario "${user.firstName} ${user.lastName}" actualizado correctamente.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al actualizar el usuario. Intente nuevamente.');
         }
@@ -217,17 +234,17 @@ export class UsuariosComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe((result: boolean) => {
       if (!result) return;
 
-      this.http.delete(`http://localhost:8080/api/users/${userId}`, { headers: { userRole: this.userRole } })
+      this.http.delete(`${API_URL}/users/${userId}`, { headers: { userRole: this.userRole } })
         .subscribe({
           next: () => {
             this.users = this.users.filter(u => u.id !== userId);
             this.filterUsers();
             this.showMessage(`Usuario "${user.firstName} ${user.lastName}" eliminado correctamente.`);
           },
-          error: err => {
+          error: (err: any) => {
             console.error(err);
             this.showMessage('Ocurrió un error al eliminar el usuario. Intente nuevamente.');
           }

@@ -12,6 +12,9 @@ import { PaymentMethodDialogComponent } from '../../shared/notificaciones/notifi
 import { PaymentFormDialogComponent } from '../../shared/notificaciones/notificacionespago/payment-form-dialog.component';
 import { InvoiceDialogComponent } from '../../shared/notificaciones/invoice/invoice-dialog.component';
 import { interval, Subscription } from 'rxjs';
+import { HttpResponse } from '@angular/common/http';
+
+const API_URL = 'http://localhost:8080/api';
 
 interface ReservationDTO {
   id: string;        // UUID
@@ -36,6 +39,7 @@ export class MisReservasComponent implements OnInit, OnDestroy {
   userEmail = '';
   userRole = '';
   searchTerm = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
 
   reservations: ReservationDTO[] = [];
   invoice: InvoiceDTO | null = null;
@@ -74,8 +78,8 @@ export class MisReservasComponent implements OnInit, OnDestroy {
     const userId = this.auth.getUserId();
     if (!userId) return;
 
-    this.http.get<ReservationDTO[]>(`http://localhost:8080/api/reservations/user/${userId}`)
-      .subscribe(res => {
+    this.http.get<ReservationDTO[]>(`${API_URL}/reservations/user/${userId}`)
+    .subscribe((res: ReservationDTO[]) => {
         this.reservations = res;
 
         const pending = this.reservations.find(r => r.status === 'PENDING');
@@ -142,7 +146,7 @@ export class MisReservasComponent implements OnInit, OnDestroy {
         data: { reservationId, method }
       });
 
-      const formSub = formDialog.afterClosed().subscribe(formData => {
+      const formSub = formDialog.afterClosed().subscribe((formData: any) => {
         formSub.unsubscribe();
 
         if (!formData) {
@@ -180,9 +184,9 @@ export class MisReservasComponent implements OnInit, OnDestroy {
   }
 
   cancelReservation(reservationId: string) {
-    this.http.delete(`http://localhost:8080/api/reservations/${reservationId}`, { observe: 'response' })
+    this.http.delete(`${API_URL}/reservations/${reservationId}`, { observe: 'response' })
       .subscribe({
-        next: (res) => {
+        next: (res: HttpResponse<any>) => {
           if (res.status === 204) {
             this.notificationService.show('Reserva cancelada correctamente', 'success');
             this.pendingService.cancelReservation(); // limpiar snackbar/localStorage
@@ -215,32 +219,41 @@ export class MisReservasComponent implements OnInit, OnDestroy {
     });
   }
 
+  toggleSort() {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+  }
 
   get filteredReservations(): ReservationDTO[] {
-      const normalize = (str: string) =>
-        str
-          .toLowerCase()
-          .normalize('NFD')      // descompone caracteres acentuados
-          .replace(/[\u0300-\u036f]/g, ''); // elimina tildes
-
-      const term = normalize(this.searchTerm);
-
-      const translateStatus = (status: string): string => {
-        switch(status) {
-          case 'PENDING': return 'pendiente';
-          case 'CONFIRMED': return 'confirmada';
-          case 'CANCELLED': return 'cancelada';
-          default: return status.toLowerCase();
-        }
-      };
-
-      return this.reservations.filter(r =>
-        normalize(r.courtName).includes(term) ||
-        normalize(r.date).includes(term) ||
-        normalize(r.code).includes(term) ||
-        normalize(translateStatus(r.status)).includes(term)
-      );
+    const normalize = (str: string) =>
+      str
+        .toLowerCase()
+        .normalize('NFD') // descompone caracteres acentuados
+        .replace(/[\u0300-\u036f]/g, ''); // elimina tildes
+  
+    const term = normalize(this.searchTerm);
+    const translateStatus = (status: string): string => {
+      switch (status) {
+        case 'PENDING': return 'pendiente';
+        case 'CONFIRMED': return 'confirmada';
+        case 'CANCELLED': return 'cancelada';
+        default: return status.toLowerCase();
+      }
+    };
+  
+    const filtered = this.reservations.filter(r =>
+      normalize(r.courtName).includes(term) ||
+      normalize(r.date).includes(term) ||
+      normalize(r.code).includes(term) ||
+      normalize(translateStatus(r.status)).includes(term)
+    );
+  
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+    });
   }
+  
 
 
   get hasPendingReservations(): boolean {

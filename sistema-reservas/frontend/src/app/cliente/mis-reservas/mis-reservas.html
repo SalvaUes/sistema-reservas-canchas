@@ -60,7 +60,11 @@
             <tr>
               <th>Código</th>
               <th>Cancha</th>
-              <th>Fecha</th>
+              <th (click)="toggleSort()" style="cursor: pointer;">
+                Fecha
+                <span *ngIf="sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortDirection === 'desc'">▼</span>
+              </th>
               <th>Inicio</th>
               <th>Fin</th>
               <th>Estado</th>

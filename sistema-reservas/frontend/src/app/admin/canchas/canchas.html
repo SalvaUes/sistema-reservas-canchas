@@ -110,7 +110,11 @@
               <th>Código</th>
               <th>Nombre</th>
               <th>Deporte</th>
-              <th>Precio/Hora</th>
+              <th (click)="toggleSortByPrice()" style="cursor: pointer;">
+                Precio/Hora
+                <span *ngIf="sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortDirection === 'desc'">▼</span>
+              </th>
               <th *ngIf="userRole === 'ADMIN'">Acciones</th>
             </tr>
           </thead>

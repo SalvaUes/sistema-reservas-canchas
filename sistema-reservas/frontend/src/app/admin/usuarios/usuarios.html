@@ -58,12 +58,23 @@
           name="userSearch"
           spellcheck="false"
         />
-
+      
+        <label for="filterRole">Rol:</label>
+        <select
+          id="filterRole"
+          [(ngModel)]="filterRole"
+          (change)="filterUsers()"
+        >
+          <option value="">Todos</option>
+          <option *ngFor="let r of roles" [value]="r">{{ r }}</option>
+        </select>
+      
         <!-- Botón de añadir solo para ADMIN -->
         <button *ngIf="userRole === 'ADMIN'" class="add-btn" (click)="openForm(false)">
           Añadir Usuario
         </button>
       </div>
+      
 
       <!-- Modal formulario solo para ADMIN -->
       <div class="modal-backdrop" *ngIf="showForm && userRole === 'ADMIN'" (click)="cancelForm()">

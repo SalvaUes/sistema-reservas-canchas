@@ -8,6 +8,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { AuthService } from '../../services/auth.service';
 import { ConfirmDialogComponent } from '../usuarios/confirm-dialog.component';
 
+const API_URL = 'http://localhost:8080/api/courts';
+
 interface CourtDTO {
   id: string; // UUID
   code: string; // Código de cancha
@@ -28,6 +30,7 @@ export class CanchasAdminComponent implements OnInit {
   courts: CourtDTO[] = [];
   filteredCourts: CourtDTO[] = [];
   searchTerm: string = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
   showForm: boolean = false;
   editMode: boolean = false;
   editingCourtId: string | null = null;
@@ -87,7 +90,7 @@ export class CanchasAdminComponent implements OnInit {
   }
 
   loadCourts() {
-    this.http.get<CourtDTO[]>('http://localhost:8080/api/courts').subscribe(res => {
+    this.http.get<CourtDTO[]>(API_URL).subscribe((res: CourtDTO[]) => {
       this.courts = res;
       this.filterCourts();
     });
@@ -95,12 +98,27 @@ export class CanchasAdminComponent implements OnInit {
 
   filterCourts() {
     const term = this.searchTerm.toLowerCase();
-    this.filteredCourts = this.courts.filter(
-      c =>
-        c.name.toLowerCase().includes(term) ||
-        c.code.toLowerCase().includes(term) ||
-        c.sportType.toLowerCase().includes(term)
+  
+    let results = this.courts.filter(c =>
+      c.name.toLowerCase().includes(term) ||
+      c.code.toLowerCase().includes(term) ||
+      c.sportType.toLowerCase().includes(term) ||
+      c.pricePerHour.toString().includes(term) // <-- permite buscar por precio
     );
+  
+    // Ordenar por precio
+    results.sort((a, b) =>
+      this.sortDirection === 'asc'
+        ? a.pricePerHour - b.pricePerHour
+        : b.pricePerHour - a.pricePerHour
+    );
+  
+    this.filteredCourts = results;
+  }
+
+  toggleSortByPrice() {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    this.filterCourts();
   }
 
   openForm(editMode = false, court?: CourtDTO) {
@@ -150,34 +168,34 @@ export class CanchasAdminComponent implements OnInit {
 
     if (!this.editMode) {
       // Crear cancha
-      this.http.post<CourtDTO>('http://localhost:8080/api/courts', payload).subscribe({
-        next: court => {
+      this.http.post<CourtDTO>(API_URL, payload).subscribe({
+        next: (court: CourtDTO) => {
           this.courts.push(court);
           this.filterCourts();
           this.cancelForm();
           this.showMessage(`Cancha "${court.name}" creada con éxito.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al crear la cancha. Intente nuevamente.');
         }
       });
     } else if (this.editingCourtId) {
       // Editar cancha
-      this.http.put<CourtDTO>(`http://localhost:8080/api/courts/${this.editingCourtId}`, payload).subscribe({
-        next: court => {
+      this.http.put<CourtDTO>(`${API_URL}/${this.editingCourtId}`, payload).subscribe({
+        next: (court: CourtDTO) => {
           const index = this.courts.findIndex(c => c.id === this.editingCourtId);
           if (index !== -1) this.courts[index] = court;
           this.filterCourts();
           this.cancelForm();
           this.showMessage(`Cancha "${court.name}" actualizada correctamente.`);
         },
-        error: err => {
+        error: (err: any) => {
           console.error(err);
           this.showMessage('Ocurrió un error al actualizar la cancha. Intente nuevamente.');
         }
       });
-    }
+    }    
   }
 
   deleteCourt(courtId: string) {
@@ -197,17 +215,17 @@ export class CanchasAdminComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe((result: boolean) => {
       if (!result) return;
 
-      this.http.delete(`http://localhost:8080/api/courts/${courtId}`, { headers: { userRole: this.userRole } })
+      this.http.delete(`${API_URL}/${courtId}`, { headers: { userRole: this.userRole } })
         .subscribe({
           next: () => {
             this.courts = this.courts.filter(c => c.id !== courtId);
             this.filterCourts();
             this.showMessage(`Cancha "${court.name}" eliminada correctamente.`);
           },
-          error: err => {
+          error: (err: any) => {
             console.error(err);
             this.showMessage('Ocurrió un error al eliminar la cancha. Intente nuevamente.');
           }

@@ -32,9 +32,10 @@ public class CourtRestController {
 
     @GetMapping
     public List<CourtDTO> getAllCourts() {
-        return courtService.findAllCourts().stream()
-                .map(CourtDTO::new)
-                .collect(Collectors.toList());
+        return courtService.findAllCourts()
+                        .stream()
+                        .map(CourtDTO::new) 
+                        .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")

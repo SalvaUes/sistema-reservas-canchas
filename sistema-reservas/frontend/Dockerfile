@@ -5,9 +5,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copiar dependencias primero para aprovechar el cache
+# Copiar package.json y package-lock.json para instalar dependencias
 COPY package*.json ./
+
+# Instalar dependencias del proyecto
 RUN npm ci
+
+# Instalar explícitamente las librerías 
+RUN npm install @stomp/stompjs jwt-decode
+
+# Instalar Angular CLI globalmente
 RUN npm install -g @angular/cli
 
 # Copiar el resto del código fuente
@@ -20,10 +27,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar desde el builder solo lo necesario
+# Copiar todo desde la etapa de build
 COPY --from=builder /app /app
 
-# Instalar Angular CLI globalmente para poder ejecutar ng serve
+# Instalar Angular CLI globalmente para ng serve
 RUN npm install -g @angular/cli
 
 EXPOSE 4200

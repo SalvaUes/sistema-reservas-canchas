@@ -1,111 +1,281 @@
 package com.reservas.backend.controller;
 
+import java.net.URI;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-import org.springframework.stereotype.Service;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.reservas.backend.dto.ReservationDTO;
+import com.reservas.backend.dto.ReservationRequest;
+import com.reservas.backend.dto.ReservationUserUpdateDTO;
 import com.reservas.backend.model.Court;
 import com.reservas.backend.model.Reservation;
 import com.reservas.backend.model.User;
-import com.reservas.backend.repository.ReservationRepository;
+import com.reservas.backend.repository.UserRepository;
+import com.reservas.backend.service.ReservationService;
 
-@Service
+@RestController
+@RequestMapping("/api/reservations")
+@CrossOrigin(origins = "http://localhost:4200")
 public class ReservationController {
 
-    private final ReservationRepository reservationRepository;
+    private final ReservationService reservationService;
+    private final CourtController courtService;
+    private final UserRepository userRepository;
 
-    public ReservationController(ReservationRepository reservationRepository) {
-        this.reservationRepository = reservationRepository;
+    public ReservationController(ReservationService reservationService,
+                                 CourtController courtService,
+                                 UserRepository userRepository) {
+        this.reservationService = reservationService;
+        this.courtService = courtService;
+        this.userRepository = userRepository;
     }
 
-    /** Obtiene todas las reservas y actualiza estados automáticamente */
-    public List<Reservation> findAllReservations() {
-        List<Reservation> reservations = reservationRepository.findAll();
-        LocalDateTime now = LocalDateTime.now();
-        for (Reservation r : reservations) {
-            if ("PENDING".equals(r.getStatus()) &&
-                LocalDateTime.of(r.getDate(), r.getEndTime()).isBefore(now)) {
-                r.setStatus("FINISHED");
-                reservationRepository.save(r);
-            }
-        }
-        return reservations;
+    // Obtener todas las reservas
+    @GetMapping
+    public List<ReservationDTO> getAllReservations() {
+        return reservationService.findAllReservations()
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    public Optional<Reservation> findReservationById(UUID id) {
-        return reservationRepository.findById(id);
+    // Obtener una reserva por ID
+    @GetMapping("/{id}")
+    public ResponseEntity<ReservationDTO> getReservationById(@PathVariable UUID id) {
+        return reservationService.findReservationById(id)
+                .map(res -> ResponseEntity.ok(toDTO(res)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    public List<Reservation> findReservationsByCourtAndDate(UUID courtId, LocalDate date) {
-        return reservationRepository.findByCourtIdAndDate(courtId, date);
+    // Obtener reservas por cancha y fecha
+    @GetMapping("/court/{courtId}")
+    public List<ReservationDTO> getReservationsByCourtAndDate(
+            @PathVariable UUID courtId,
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+
+        return reservationService.findReservationsByCourtAndDate(courtId, date)
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    /** Intenta crear una nueva reserva validando conflictos y fechas */
-    public Reservation attemptReservation(Court court, User user, LocalDate date,
-                                          LocalTime startTime, LocalTime endTime) {
-        if (date.isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("La fecha no puede ser anterior al día de hoy.");
-        }
-        if (!startTime.isBefore(endTime)) {
-            throw new IllegalArgumentException("La hora de inicio debe ser menor que la hora de fin.");
+    @PatchMapping("/{id}/reactivate")
+    public ResponseEntity<ReservationDTO> reactivateReservation(@PathVariable UUID id) {
+        Optional<Reservation> existing = reservationService.findReservationById(id);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
 
-        boolean overlapExists = reservationRepository.existsOverlappingReservation(
-                court.getId(), date, startTime, endTime
-        );
+        try {
+            Reservation updated = reservationService.reactivateReservation(id);
+            // Convertir a DTO plano para evitar referencias circulares
+            ReservationDTO dto = toDTO(updated);
+            return ResponseEntity.ok(dto);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(null);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(null);
+        }
+    }
 
-        if (overlapExists) {
-            throw new IllegalStateException("Ya existe una reserva en ese horario.");
+
+    // Reactivación masiva
+    @PatchMapping("/reactivate-bulk")
+    public ResponseEntity<List<Map<String, Object>>> reactivateReservationsBulk(
+            @RequestBody List<UUID> reservationIds) {
+
+        if (reservationIds == null || reservationIds.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(List.of(Map.of("status", "error", "message", "No se proporcionaron IDs de reservas.")));
         }
 
-        Reservation newReservation = new Reservation(date, startTime, endTime, user, court);
+        List<Map<String, Object>> results = reservationService.reactivateReservationsBulk(reservationIds);
+        // Cada reactivación dentro del service envía notificación en tiempo real
+        return ResponseEntity.ok(results);
+    }
 
-        // Estado inicial según fecha/hora
-        if (LocalDateTime.of(date, startTime).isAfter(LocalDateTime.now())) {
-            newReservation.setStatus("PENDING");
+    // Obtener estado + info de la reserva para polling
+    @GetMapping("/{id}/status")
+    public ResponseEntity<Map<String, String>> getReservationStatus(@PathVariable UUID id) {
+        Optional<Reservation> resOpt = reservationService.findReservationById(id);
+        if (resOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Reservation res = resOpt.get();
+        return ResponseEntity.ok(Map.of(
+                "status", res.getStatus(),
+                "courtName", res.getCourt().getName(),
+                "startTime", res.getStartTime().toString(),
+                "endTime", res.getEndTime().toString()
+        ));
+    }
+
+    // Crear reserva
+    @PostMapping
+    public ResponseEntity<Object> createReservation(@RequestBody ReservationRequest request) {
+        Optional<Court> courtOpt = courtService.findCourtById(request.getCourtId());
+        Optional<User> userOpt = userRepository.findById(request.getUserId());
+
+        if (courtOpt.isEmpty() || userOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body("Usuario o cancha no encontrados.");
+        }
+
+        try {
+            Reservation newReservation = reservationService.attemptReservation(
+                    courtOpt.get(), userOpt.get(),
+                    request.getDate(), request.getStartTime(), request.getEndTime()
+            );
+
+            URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                    .path("/{id}")
+                    .buildAndExpand(newReservation.getId())
+                    .toUri();
+
+            return ResponseEntity.created(location).body(toDTO(newReservation));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // Editar reserva completa
+    @PutMapping("/{id}")
+    public ResponseEntity<ReservationDTO> updateReservation(@PathVariable UUID id,
+                                                            @RequestBody ReservationRequest request) {
+        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
+        if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Reservation reservation = existingOpt.get();
+
+        if (request.getCourtId() != null) {
+            Optional<Court> court = courtService.findCourtById(request.getCourtId());
+            if (court.isEmpty()) return ResponseEntity.badRequest().build();
+            reservation.setCourt(court.get());
+        }
+
+        if (request.getUserId() != null) {
+            Optional<User> user = userRepository.findById(request.getUserId());
+            if (user.isEmpty()) return ResponseEntity.badRequest().build();
+            reservation.setUser(user.get());
+        }
+
+        if (request.getDate() != null) reservation.setDate(request.getDate());
+        if (request.getStartTime() != null) reservation.setStartTime(request.getStartTime());
+        if (request.getEndTime() != null) reservation.setEndTime(request.getEndTime());
+        if (request.getStatus() != null) reservation.setStatus(request.getStatus());
+
+        try {
+            // Usar el método del service que valida + notifica
+            Reservation updated = reservationService.updateReservation(reservation);
+            return ResponseEntity.ok(toDTO(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(null);
+        }
+    }
+
+    // Actualizar solo el estado
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ReservationDTO> updateReservationStatus(
+            @PathVariable UUID id, @RequestBody String newStatus) {
+        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
+        if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Reservation reservation = existingOpt.get();
+        String upperStatus = newStatus.trim().toUpperCase();
+
+        List<String> allowedStatuses = List.of("PENDING", "CONFIRMED", "CANCELLED", "FINISHED", "REACTIVATED");
+        if (!allowedStatuses.contains(upperStatus)) return ResponseEntity.badRequest().build();
+
+        if ("CANCELLED".equalsIgnoreCase(upperStatus)) {
+            reservationService.cancelReservation(reservation.getId());
         } else {
-            newReservation.setStatus("CONFIRMED");
+            reservation.setStatus(upperStatus);
+            reservationService.saveReservation(reservation);
         }
 
-        return reservationRepository.save(newReservation);
+        return ResponseEntity.ok(toDTO(reservation));
     }
 
-    /** Guarda reserva existente validando conflictos */
-    public Reservation saveReservation(Reservation reservation) {
-        boolean overlapExists = reservationRepository.existsOverlappingReservation(
-                reservation.getCourt().getId(),
-                reservation.getDate(),
-                reservation.getStartTime(),
-                reservation.getEndTime()
-        );
+    // Cambiar usuario asociado con notificación
+    @PatchMapping("/{id}/user")
+    public ResponseEntity<ReservationDTO> updateReservationUser(@PathVariable UUID id,
+                                                                @RequestBody ReservationUserUpdateDTO request) {
+        try {
+            // Usar el método del service que actualiza + notifica
+            Reservation updated = reservationService.updateReservationUser(id, 
+                    userRepository.findById(request.getUserId())
+                            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
+            );
 
-        if (overlapExists) {
-            throw new IllegalStateException("El horario seleccionado entra en conflicto con otra reserva.");
+            return ResponseEntity.ok(toDTO(updated));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(null);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
-
-        return reservationRepository.save(reservation);
     }
 
-    /** Cancela reserva (cambiar estado a CANCELLED) */
-    public void cancelReservation(UUID reservationId) {
-        Optional<Reservation> reservation = reservationRepository.findById(reservationId);
-        reservation.ifPresent(res -> {
-            res.setStatus("CANCELLED");
-            reservationRepository.save(res);
-        });
+    // Obtener reservas por usuario
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<ReservationDTO>> getReservationsByUser(@PathVariable Long userId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        List<ReservationDTO> reservations = reservationService.findReservationsByUser(userOpt.get())
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(reservations);
     }
 
-    /** Elimina físicamente la reserva */
-    public void deleteReservation(UUID reservationId) {
-        reservationRepository.deleteById(reservationId);
+    // Cancelar reserva
+    @DeleteMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelReservation(@PathVariable UUID id) {
+        Optional<Reservation> existing = reservationService.findReservationById(id);
+        if (existing.isEmpty()) return ResponseEntity.notFound().build();
+
+        reservationService.cancelReservation(id);
+        return ResponseEntity.noContent().build();
     }
 
-    public List<Reservation> findReservationsByUser(User user) {
-        return reservationRepository.findByUser(user);
+    // Eliminar reserva
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteReservation(@PathVariable UUID id) {
+        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
+        if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        try {
+            reservationService.deleteReservationSafe(id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    // ----------------- Helper -----------------
+    private ReservationDTO toDTO(Reservation res) {
+        ReservationDTO dto = new ReservationDTO(res);
+        if (dto.getStartDateTime() != null) dto.setStartTime(dto.getStartDateTime().toLocalTime());
+        if (dto.getEndDateTime() != null) dto.setEndTime(dto.getEndDateTime().toLocalTime());
+        return dto;
     }
 }

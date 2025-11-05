@@ -4,16 +4,23 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 public class ReservationRequest {
 
     private Long userId;       
     private UUID courtId;
     private LocalDate date;
+
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
+
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
+
     private String status;     // Opcional si quieres permitir editar el estado
 
-    // 🔹 Getters y setters
+    // Getters y setters
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 

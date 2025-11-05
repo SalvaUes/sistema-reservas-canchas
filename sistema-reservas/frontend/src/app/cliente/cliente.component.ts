@@ -1,22 +1,16 @@
-// cliente.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
-import { combineLatest, Observable } from 'rxjs';
+import { combineLatest, Observable, Subscription } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
-import { HttpClient } from '@angular/common/http';
-import { ReservationPendingService } from '../services/reservation-pending.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { ReservationPendingService } from '../services/reservation/reservation-pending.service';
+import { ReservationReactivatedService } from '../services/reservation/reservation-reactivated.service';
+import { NotificationService } from './../shared/notificaciones/notification.service';
 
-interface ReservationDTO {
-  id: string;
-  code: string;
-  courtName: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  status: string;
+interface UserInfo {
+  email: string | null;
+  role: string | null;
 }
 
 @Component({
@@ -26,40 +20,117 @@ interface ReservationDTO {
   templateUrl: './cliente.html',
   styleUrls: ['./cliente.scss']
 })
-export class ClienteComponent implements OnInit {
+export class ClienteComponent implements OnInit, OnDestroy {
   isSidePanelClosed = true;
   manualClose = false;
-
-  user$!: Observable<{ email: string | null; role: string | null }>;
+  user$!: Observable<UserInfo>;
+  private subs = new Subscription();
 
   constructor(
     private auth: AuthService,
     private router: Router,
-    private http: HttpClient,
     private pendingService: ReservationPendingService,
-    private snackBar: MatSnackBar
+    private reactivatedService: ReservationReactivatedService,
+    private notificationService: NotificationService
   ) {}
 
-  ngOnInit() {
-    // Inicializamos los observables de usuario
-    this.user$ = combineLatest([this.auth.userEmail$, this.auth.userRole$]).pipe(
-      map(([email, role]) => ({ email, role }))
-    );
+   ngOnInit() {
+    // Observables de usuario
+    this.user$ = combineLatest([this.auth.userEmail$, this.auth.userRole$])
+      .pipe(map(([email, role]): UserInfo => ({ email, role })));
 
-    // Mostrar reserva pendiente si existe
-    this.loadPendingReservation();
+    // -------------------- Escuchar eventos de reservas --------------------
 
-    // Recarga solo una vez al entrar a /cliente
-    if (!sessionStorage.getItem('clienteReloaded')) {
-      sessionStorage.setItem('clienteReloaded', 'true');
-      location.reload();
-    }
-
-    // Escuchar cancelación automática de reserva
-    this.pendingService.reservationCancelled.subscribe(() => {
-      this.snackBar.open('⏱️ Tu reserva pendiente ha expirado', 'Cerrar', { duration: 5000 });
+    // Cancelación (automática, manual o por admin)
+    const cancelSub = this.pendingService.reservationCancelled.subscribe(({ reservationId, reason }) => {
+      let msg = '';
+      switch (reason) {
+        case 'auto':
+          msg = `Tu reserva pendiente ha expirado automáticamente.`;
+          break;
+        case 'admin':
+          msg = `Tu reserva fue cancelada por el administrador.`;
+          break;
+        case 'manual':
+        default:
+          msg = `La reserva pendiente fue cancelada.`;
+          break;
+      }
+      this.notificationService.show(msg, 'error', 5000);
     });
+
+    // Reactivación emitida por pendingService
+    const reactivatedSub = this.pendingService.reservationStarted.subscribe(() => {
+      const active = this.pendingService.getActiveReservation();
+      if (!active) return;
+
+      if (active.reactivated) {
+        this.notificationService.show(
+          `Tu reserva ha sido reactivada. Tienes 3 minutos para confirmarla.`,
+          'success',
+          5000
+        );
+      }
+
+      // Detectar cambios menores desde localStorage
+      const saved = localStorage.getItem('activeReservation');
+      if (!saved) return;
+
+      try {
+        const parsed = JSON.parse(saved);
+
+        const normalize = (s: string) => (s || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+        const hasChanged =
+          normalize(parsed.courtName) !== normalize(active.courtName) ||
+          normalize(parsed.startTime) !== normalize(active.startTime) ||
+          normalize(parsed.endTime) !== normalize(active.endTime);
+
+        if (hasChanged) {
+          this.notificationService.show(
+            `Tu reserva ha sido modificada por el administrador.`,
+            'info',
+            4000
+          );
+
+          // Actualizar reserva activa y forzar refresco visual si es necesario
+          this.pendingService.updateActiveReservation({
+            courtName: active.courtName,
+            startTime: active.startTime,
+            endTime: active.endTime,
+          });
+        }
+      } catch (err) {
+        console.warn('Error comparando reservas locales:', err);
+      }
+    });
+
+    // Reactivación detectada por reactivatedService (opcional, eventos externos)
+    const externalReactivatedSub = this.reactivatedService.reservationReactivated.subscribe(event => {
+      if (event.reactived) {
+        this.notificationService.show(
+          `Tu reserva fue reactivada correctamente. Tienes 3 minutos para confirmarla.`,
+          'success',
+          5000
+        );
+      } else if (event.cancelled) {
+        this.notificationService.show(
+          `La reserva fue cancelada por el administrador.`,
+          'error',
+          5000
+        );
+      }
+    });
+
+    // -------------------- Guardar subscripciones --------------------
+    this.subs.add(cancelSub);
+    this.subs.add(reactivatedSub);
+    this.subs.add(externalReactivatedSub);
   }
+
+  ngOnDestroy() {
+    this.subs.unsubscribe(); // cancela todas las suscripciones
+  }
+
 
   toggleSidePanel() {
     this.manualClose = !this.manualClose;
@@ -73,32 +144,8 @@ export class ClienteComponent implements OnInit {
   }
 
   logout() {
+    this.pendingService.logoutAndClearReservation();
     this.auth.logout();
-    location.href = '/login';
-  }
-
-  /** Carga reservas pendientes y muestra snackbar */
-  private loadPendingReservation() {
-    const userId = this.auth.getUserId();
-    if (!userId) return;
-
-    this.http.get<ReservationDTO[]>(`http://localhost:8080/api/reservations/user/${userId}`)
-      .subscribe(res => {
-        const pending = res.find(r => r.status === 'PENDING');
-
-        // Solo mostrar si no hay reserva activa
-        if (pending && !this.pendingService.hasActiveReservation()) {
-          const remaining = this.pendingService.getRemainingTime(pending.id) ?? 60000;
-
-          this.pendingService.startPendingReservation(
-            pending.id,
-            pending.code,
-            remaining,
-            pending.courtName,
-            pending.startTime,
-            pending.endTime
-          );
-        }
-      });
+    this.router.navigateByUrl('/login');
   }
 }

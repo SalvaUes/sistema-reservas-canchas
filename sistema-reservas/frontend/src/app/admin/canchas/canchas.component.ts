@@ -2,9 +2,12 @@ import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MatDialogModule } from '@angular/material/dialog'; 
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterModule } from '@angular/router';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { MatDialog } from '@angular/material/dialog';
+
 import { AuthService } from '../../services/auth.service';
 import { ConfirmDialogComponent } from '../usuarios/confirm-dialog.component';
 
@@ -17,12 +20,13 @@ interface CourtDTO {
   description?: string;
   sportType: string;
   pricePerHour: number;
+  hasReservations?: boolean;
 }
 
 @Component({
   selector: 'app-canchas',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatTooltipModule],
   templateUrl: './canchas.html',
   styleUrls: ['./canchas.scss'],
 })
@@ -49,6 +53,15 @@ export class CanchasAdminComponent implements OnInit {
   ];
   pricePerHour: number = 0;
 
+
+  paginatedCourts: CourtDTO[] = [];
+  selectedCourts: CourtDTO[] = [];
+  selectAllPage = false;
+  selectAllGlobal = false;
+  currentPage = 1;
+  pageSize = 10;
+  totalPages = 1;
+
   // Barra lateral
   isSidePanelClosed = true;
   userEmail = '';
@@ -57,7 +70,7 @@ export class CanchasAdminComponent implements OnInit {
   constructor(
     private http: HttpClient,
     private auth: AuthService,
-    private snackBar: MatSnackBar,
+    private notify: NotificationService,
     private dialog: MatDialog
   ) {
     this.userEmail = this.auth.getUserEmail() || 'admin@correo.com';
@@ -81,14 +94,6 @@ export class CanchasAdminComponent implements OnInit {
     location.href = '/login';
   }
 
-  private showMessage(message: string) {
-    this.snackBar.open(message, 'Cerrar', {
-      duration: 4000,
-      horizontalPosition: 'center',
-      verticalPosition: 'top'
-    });
-  }
-
   loadCourts() {
     this.http.get<CourtDTO[]>(API_URL).subscribe((res: CourtDTO[]) => {
       this.courts = res;
@@ -96,24 +101,84 @@ export class CanchasAdminComponent implements OnInit {
     });
   }
 
+  private normalizeString(str: string): string {
+    return str
+      .normalize('NFD')              // descompone caracteres con acentos
+      .replace(/[\u0300-\u036f]/g, '') // elimina los diacríticos
+      .toLowerCase();
+  }
+
   filterCourts() {
-    const term = this.searchTerm.toLowerCase();
-  
+    const term = this.normalizeString(this.searchTerm);
+
     let results = this.courts.filter(c =>
-      c.name.toLowerCase().includes(term) ||
-      c.code.toLowerCase().includes(term) ||
-      c.sportType.toLowerCase().includes(term) ||
-      c.pricePerHour.toString().includes(term) // <-- permite buscar por precio
+      this.normalizeString(c.name).includes(term) ||
+      this.normalizeString(c.code).includes(term) ||
+      this.normalizeString(c.sportType).includes(term) ||
+      c.pricePerHour.toString().includes(term)
     );
-  
-    // Ordenar por precio
-    results.sort((a, b) =>
+
+    results.sort((a,b) =>
       this.sortDirection === 'asc'
         ? a.pricePerHour - b.pricePerHour
         : b.pricePerHour - a.pricePerHour
     );
-  
+
     this.filteredCourts = results;
+    this.totalPages = Math.ceil(results.length / this.pageSize);
+    this.setPaginatedCourts();
+  }
+
+
+  setPaginatedCourts() {
+    const start = (this.currentPage - 1) * this.pageSize;
+    this.paginatedCourts = this.filteredCourts.slice(start, start + this.pageSize);
+  }
+
+  get selectedCount(): number {
+    return this.selectedCourts.length;
+  }
+
+  // Paginación
+  nextPage() { this.currentPage++; this.setPaginatedCourts(); }
+  previousPage() { this.currentPage--; this.setPaginatedCourts(); }
+
+  // Selección de filas
+  toggleSelection(court: CourtDTO, event: any) {
+    if (court.hasReservations) return; // no permitir selección
+    if (event.target.checked) this.selectedCourts.push(court);
+    else this.selectedCourts = this.selectedCourts.filter(c => c !== court);
+    this.updateSelectAllFlags();
+  }
+
+  toggleSelectAllPage(event: any) {
+    if (event.target.checked) {
+      this.paginatedCourts.forEach(c => {
+        if (!c.hasReservations && !this.selectedCourts.includes(c)) {
+          this.selectedCourts.push(c);
+        }
+      });
+    } else {
+      this.paginatedCourts.forEach(c => {
+        this.selectedCourts = this.selectedCourts.filter(s => s !== c);
+      });
+    }
+    this.updateSelectAllFlags();
+  }
+
+  toggleSelectAllGlobal(event: any) {
+    if (event.target.checked) {
+      this.selectedCourts = this.filteredCourts.filter(c => !c.hasReservations);
+            this.showMessage('Estás seleccionando todos los registros.', 'warning');
+    } else {
+      this.selectedCourts = [];
+    }
+    this.updateSelectAllFlags();
+  }
+
+  updateSelectAllFlags() {
+    this.selectAllPage = this.paginatedCourts.every(c => c.hasReservations || this.selectedCourts.includes(c));
+    this.selectAllGlobal = this.selectedCourts.length === this.filteredCourts.filter(c => !c.hasReservations).length;
   }
 
   toggleSortByPrice() {
@@ -150,7 +215,6 @@ export class CanchasAdminComponent implements OnInit {
 
   private buildCourtPayload(): any {
     return {
-      code: this.code,
       name: this.name,
       description: this.description,
       sportType: this.sportType,
@@ -159,7 +223,7 @@ export class CanchasAdminComponent implements OnInit {
   }
 
   submitForm() {
-    if (!this.code || !this.name || !this.sportType || this.pricePerHour <= 0) {
+    if (!this.name || !this.sportType || this.pricePerHour <= 0) {
       this.showMessage('Por favor complete todos los campos obligatorios antes de continuar.');
       return;
     }
@@ -173,7 +237,7 @@ export class CanchasAdminComponent implements OnInit {
           this.courts.push(court);
           this.filterCourts();
           this.cancelForm();
-          this.showMessage(`Cancha "${court.name}" creada con éxito.`);
+          this.showMessage(`Cancha "${court.name}" creada con éxito.`, 'success');
         },
         error: (err: any) => {
           console.error(err);
@@ -188,7 +252,7 @@ export class CanchasAdminComponent implements OnInit {
           if (index !== -1) this.courts[index] = court;
           this.filterCourts();
           this.cancelForm();
-          this.showMessage(`Cancha "${court.name}" actualizada correctamente.`);
+          this.showMessage(`Cancha "${court.name}" actualizada correctamente.`, 'success');
         },
         error: (err: any) => {
           console.error(err);
@@ -200,36 +264,46 @@ export class CanchasAdminComponent implements OnInit {
 
   deleteCourt(courtId: string) {
     const court = this.courts.find(c => c.id === courtId);
-    if (!court) return;
-
-    if (this.userRole !== 'ADMIN') {
-      this.showMessage('Solo los administradores tienen permisos para eliminar canchas.');
-      return;
-    }
+    if (!court || court.hasReservations) return;
+    if (this.userRole !== 'ADMIN') { this.showMessage('Solo administradores pueden eliminar.'); return; }
 
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '350px',
-      data: {
-        title: 'Confirmar eliminación',
-        message: `¿Está seguro que desea eliminar la cancha "${court.name}"? Esta acción no se puede deshacer.`
-      }
+      data: { title: 'Confirmar eliminación', message: `¿Desea eliminar la cancha "${court.name}"?` }
     });
 
-    dialogRef.afterClosed().subscribe((result: boolean) => {
+    dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
-
-      this.http.delete(`${API_URL}/${courtId}`, { headers: { userRole: this.userRole } })
-        .subscribe({
-          next: () => {
-            this.courts = this.courts.filter(c => c.id !== courtId);
-            this.filterCourts();
-            this.showMessage(`Cancha "${court.name}" eliminada correctamente.`);
-          },
-          error: (err: any) => {
-            console.error(err);
-            this.showMessage('Ocurrió un error al eliminar la cancha. Intente nuevamente.');
-          }
-        });
+      this.http.delete(`${API_URL}/${courtId}`).subscribe({
+        next: () => { this.courts = this.courts.filter(c => c.id !== courtId); this.filterCourts(); this.showMessage(`Cancha "${court.name}" eliminada.`, 'success'); },
+        error: err => { console.error(err); this.showMessage('Error al eliminar la cancha.'); }
+      });
     });
+  }
+
+  deleteSelectedCourts() {
+    if (!this.selectedCourts.length) return;
+    const names = this.selectedCourts.map(c => c.name).join(', ');
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: { title: 'Confirmar eliminación', message: `¿Eliminar las canchas: ${names}?` }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+      const observables = this.selectedCourts.map(court => this.http.delete(`${API_URL}/${court.id}`));
+      Promise.all(observables.map(obs => obs.toPromise()))
+        .then(() => { 
+          this.courts = this.courts.filter(c => !this.selectedCourts.includes(c)); 
+          this.selectedCourts = []; 
+          this.filterCourts(); 
+          this.showMessage('Canchas eliminadas correctamente.', 'success'); 
+        })
+        .catch(err => { console.error(err); this.showMessage('Error al eliminar las canchas.'); });
+    });
+  }
+
+  showMessage(msg: string, type: 'error' | 'warning' | 'success' = 'error') {
+    this.notify.show(msg, type, 5000);
   }
 }

@@ -1,3 +1,4 @@
+// C:\Users\Alex\Desktop\ADS2\ADS\sistema-reservas-canchas\sistema-reservas\frontend\src\app\services\auth.guard.ts
 import { Injectable } from '@angular/core';
 import { CanActivate, Router, RouterStateSnapshot, ActivatedRouteSnapshot, UrlTree } from '@angular/router';
 import { AuthService } from './auth.service';

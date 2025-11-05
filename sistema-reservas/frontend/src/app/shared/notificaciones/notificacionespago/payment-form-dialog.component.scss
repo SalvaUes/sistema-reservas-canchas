@@ -1,100 +1,156 @@
-/* Contenedor general */
+// ======================================================
+// 💳 Estilos generales del contenedor de pago (scrollable)
+// ======================================================
+
 .payment-container {
-  max-width: 600px; /* más ancho que antes */
-  margin: 2rem 10px;
+  max-width: 600px;
+  margin: 10px 10px;
   padding: 2rem;
   background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  animation: fadeInUp 0.4s ease-out;
+  font-family: 'Roboto', sans-serif;
+
+  // ✅ Habilitar desplazamiento suave
+  max-height: 85vh; // limita la altura máxima al 85% del alto visible
+  overflow-y: auto;
+  scroll-behavior: smooth;
+
+  // Sombra sutil al borde inferior cuando hay scroll
+  scrollbar-width: thin;
+  scrollbar-color: #b0b8c1 #f1f5f9;
 }
 
-/* Título */
+// ======================================================
+// 🎚️ Personalización de barra de desplazamiento
+// ======================================================
+
+.payment-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.payment-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.payment-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0050ff, #0034e0);
+  border-radius: 8px;
+}
+
+.payment-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #0034e0, #001fb0);
+}
+
+// ======================================================
+// 🏷️ Título
+// ======================================================
+
 .payment-title {
   text-align: center;
   font-size: 1.8rem;
   font-weight: 700;
-  color: #222;
-  margin-bottom: 1.5rem;
+  color: #1e293b;
+  letter-spacing: 0.3px;
+  margin-bottom: 1rem;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  padding: 0.5rem 0;
+  z-index: 2;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-/* Formulario */
+// ======================================================
+// 🧾 Formulario
+// ======================================================
+
 .payment-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  width: 100%;
 }
 
 .full-width {
   width: 100%;
 }
 
-/* Campos extra de tarjeta */
 .card-fields {
   margin-top: 1rem;
   padding: 1.5rem;
   border-radius: 12px;
-  background: #d9dee45e;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.05);
+  background: #eef2f6;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
+  transition: background 0.3s ease;
+
+  &:hover {
+    background: #e7edf3;
+  }
 }
 
-/* Botón */
-button[type="submit"] {
+// ======================================================
+// 🪙 Botón principal
+// ======================================================
+
+button[type='submit'] {
   margin-top: 1rem;
   padding: 14px 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
+  border: none;
   border-radius: 12px;
-  transition: all 0.2s ease-in-out;
-  background: #0034e0b9;
+  background: linear-gradient(135deg, #0034e0, #0050ff);
   color: #ffffff;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+  box-shadow: 0 6px 16px rgba(0, 52, 224, 0.35);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 52, 224, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 10px rgba(0, 52, 224, 0.25);
+  }
+
+  &:disabled {
+    background: #e0e7ff !important;
+    color: #90a4d4 !important;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
 }
 
-button[type="submit"]:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(72, 212, 29, 0.89);
-}
-
-button[type="submit"]:disabled {
-  background: #ffffff60 !important;
-  color: #4988da8f !important;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-/* Errores más visibles */
-::ng-deep .mat-mdc-form-field-error {
-  font-size: 0.85rem;
-  color: #d32f2f;
-}
-
-::ng-deep .mat-mdc-dialog-surface {
-  width: 150%; /* ocupa todo el ancho del contenedor */
-  height: 90%; /* altura aumentada */
-  position: fixed;
-  border-radius: 12px; /* esquinas redondeadas */
-}
+// ======================================================
+// 🧾 Detalles de reserva
+// ======================================================
 
 .reservation-details {
-  background: #f5f7fa; /* fondo claro */
+  background: #f8fafc;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  animation: fadeInUp 0.5s ease;
 
   h3 {
     margin: 0 0 1rem 0;
-    font-size: 1.4rem;
+    font-size: 1.45rem;
     font-weight: 700;
-    color: #222;
+    color: #1e293b;
     border-bottom: 1px solid #d0d7de;
     padding-bottom: 0.5rem;
   }
@@ -102,11 +158,60 @@ button[type="submit"]:disabled {
   p {
     margin: 0;
     font-size: 1rem;
-    color: #333;
+    color: #334155;
 
     strong {
       color: #000;
       font-weight: 600;
     }
+  }
+}
+
+// ======================================================
+// 💬 Diálogo y fondo
+// ======================================================
+
+::ng-deep .cdk-overlay-backdrop {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(3px);
+}
+
+// ======================================================
+// ✨ Animaciones
+// ======================================================
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+// ======================================================
+// 📱 Responsividad
+// ======================================================
+
+@media (max-width: 600px) {
+  .payment-container {
+    padding: 1rem;
+    margin: 5px;
+    border-radius: 14px;
+    max-height: 90vh;
+  }
+
+  .payment-title {
+    font-size: 1.6rem;
+  }
+
+  button[type='submit'] {
+    font-size: 1rem;
+  }
+
+  .reservation-details {
+    padding: 1rem;
   }
 }

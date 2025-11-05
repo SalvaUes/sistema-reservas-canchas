@@ -12,19 +12,19 @@
     <h2 *ngIf="!isSidePanelClosed">Panel Admin</h2>
 
     <nav>
-      <a routerLink="/admin" routerLinkActive="active" matTooltip="Inicio">
+      <a routerLink="/admin" routerLinkActive="active">
         <i class="fas fa-home"></i>
         <span *ngIf="!isSidePanelClosed">Inicio</span>
       </a>
-      <a routerLink="/admin/usuarios" routerLinkActive="active" matTooltip="Usuarios">
+      <a routerLink="/admin/usuarios" routerLinkActive="active">
         <i class="fas fa-users"></i>
         <span *ngIf="!isSidePanelClosed">Usuarios</span>
       </a>
-      <a routerLink="/admin/canchas" routerLinkActive="active" matTooltip="Canchas">
+      <a routerLink="/admin/canchas" routerLinkActive="active">
         <i class="fas fa-futbol"></i>
         <span *ngIf="!isSidePanelClosed">Canchas</span>
       </a>
-      <a routerLink="/admin/reservas" routerLinkActive="active" matTooltip="Reservas">
+      <a routerLink="/admin/reservas" routerLinkActive="active">
         <i class="fas fa-calendar-check"></i>
         <span *ngIf="!isSidePanelClosed">Reservas</span>
       </a>
@@ -36,7 +36,7 @@
       <p>{{ userRole }}</p>
     </div>
 
-    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
+    <button class="logout-btn" (click)="logout()">
       <i class="fas fa-sign-out-alt"></i>
       <span *ngIf="!isSidePanelClosed">Cerrar sesión</span>
     </button>
@@ -48,8 +48,9 @@
       <h1>Canchas</h1>
 
       <!-- Buscador y botón de añadir cancha -->
-      <div class="usuarios-header">
-        <input
+      <div class="courts-toolbar">
+        <div class="search-box">
+        <input 
           type="text"
           placeholder="Buscar por codigo, nombre o tipo de deporte..."
           [(ngModel)]="searchTerm"
@@ -57,6 +58,7 @@
           autocomplete="new-password"
           spellcheck="false"
         />
+        </div>
         <button *ngIf="userRole === 'ADMIN'" class="add-btn" (click)="openForm(false)">
           Añadir Cancha
         </button>
@@ -66,11 +68,6 @@
       <div class="modal-backdrop" *ngIf="showForm && userRole === 'ADMIN'" (click)="cancelForm()">
         <div class="modal" (click)="$event.stopPropagation()">
           <h2>{{ editMode ? 'Editar Cancha' : 'Crear Nueva Cancha' }}</h2>
-
-          <div class="form-group">
-            <label>Código*:</label>
-            <input type="text" [(ngModel)]="code" maxlength="10" placeholder="Ej: C-41561"/>
-          </div>
 
           <div class="form-group">
             <label>Nombre*:</label>
@@ -102,37 +99,88 @@
         </div>
       </div>
 
-      <!-- Tabla de canchas -->
-      <div class="table-container">
-        <table class="usuarios-table">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Nombre</th>
-              <th>Deporte</th>
-              <th (click)="toggleSortByPrice()" style="cursor: pointer;">
-                Precio/Hora
-                <span *ngIf="sortDirection === 'asc'">▲</span>
-                <span *ngIf="sortDirection === 'desc'">▼</span>
-              </th>
-              <th *ngIf="userRole === 'ADMIN'">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let court of filteredCourts">
-              <td>{{ court.code }}</td>
-              <td>{{ court.name }}</td>
-              <td>{{ court.sportType }}</td>
-              <td>{{ court.pricePerHour | currency }}</td>
-              <td class="acciones" *ngIf="userRole === 'ADMIN'">
-                <button class="edit-btn" (click)="openForm(true, court)">✏️ Editar</button>
-                <button class="delete-btn" (click)="deleteCourt(court.id)">🗑️ Eliminar</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p *ngIf="filteredCourts.length === 0" class="no-results">No se encontraron canchas.</p>
-      </div>
+        <!-- Contenedor de selección global y acciones masivas -->
+        <div class="courts-toolbar">
+          <!-- Checkbox global -->
+          <div class="select-global">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="selectAllGlobal"
+                (change)="toggleSelectAllGlobal($event)"
+              />
+              <span>Seleccionar todos los registros</span>
+            </label>
+          </div>
+
+          <!-- Acciones masivas -->
+          <div
+            class="bulk-actions"
+            *ngIf="selectedCourts.length > 0"
+          >
+            <button
+              class="delete-btn"
+              (click)="deleteSelectedCourts()"
+              [matTooltip]="selectedCourts.length === 0 ? 'No hay canchas seleccionadas para eliminar' : ''"
+            >
+              🗑️ Eliminar seleccionados
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla canchas -->
+        <div class="table-container">
+          <table class="usuarios-table">
+            <thead>
+              <tr>
+                <th>
+                  <input type="checkbox" [checked]="selectAllPage" (change)="toggleSelectAllPage($event)">
+                </th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Deporte</th>
+                <th (click)="toggleSortByPrice()" style="cursor: pointer;">
+                  Precio/Hora
+                  <span *ngIf="sortDirection === 'asc'">▲</span>
+                  <span *ngIf="sortDirection === 'desc'">▼</span>
+                </th>
+                <th *ngIf="userRole === 'ADMIN'">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let court of paginatedCourts">
+                <td>
+                  <input type="checkbox"
+                        [checked]="selectedCourts.includes(court)"
+                        (change)="toggleSelection(court, $event)"
+                        [disabled]="court.hasReservations">
+                </td>
+                <td>{{ court.code }}</td>
+                <td>{{ court.name }}</td>
+                <td>{{ court.sportType }}</td>
+                <td>{{ court.pricePerHour | currency }}</td>
+                <td class="acciones" *ngIf="userRole === 'ADMIN'">
+                  <button class="edit-btn" (click)="openForm(true, court)">✏️ Editar</button>
+                  <button class="delete-btn" 
+                          (click)="deleteCourt(court.id)"
+                          [disabled]="court.hasReservations"
+                          matTooltip="{{ court.hasReservations ? 'No se puede seleccionar, esta cancha tiene reservas' : '' }}"
+                          >🗑️ Eliminar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p *ngIf="filteredCourts.length === 0" class="no-results">No se encontraron usuarios.</p>
+            <p>{{ selectedCount }} cancha(s) seleccionada(s)</p>
+          
+          <!-- Paginación -->
+          <div class="pagination" *ngIf="totalPages > 1">
+            <button (click)="previousPage()" [disabled]="currentPage === 1">⬅ Anterior</button>
+            <span>Página {{ currentPage }} de {{ totalPages }}</span>
+            <button (click)="nextPage()" [disabled]="currentPage === totalPages">Siguiente ➡</button>
+          </div>
+        </div>
     </section>
   </main>
 </div>

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -79,37 +80,53 @@ public class ReservationService {
     @Transactional
     public Reservation attemptReservation(Court court, User user, LocalDate date, LocalTime startTime, LocalTime endTime) {
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime start = LocalDateTime.of(date, startTime);
-        LocalDateTime end = LocalDateTime.of(date, endTime);
+        // --- Obtener la fecha y hora local de El Salvador ---
+        ZoneId zoneES = ZoneId.of("America/El_Salvador");
+        LocalDate today = LocalDate.now(zoneES);
+        LocalTime now = LocalTime.now(zoneES);
 
-        // Validaciones básicas
-        if (date.isBefore(LocalDate.now()))
+        // --- Validaciones previas ---
+        if (date.isBefore(today)) {
             throw new IllegalArgumentException("La fecha seleccionada ya pasó.");
-
-        if (date.isEqual(LocalDate.now()) && startTime.isBefore(LocalTime.now()))
-            throw new IllegalArgumentException("La hora de inicio debe ser posterior a la actual.");
-
-        if (!startTime.isBefore(endTime))
-            throw new IllegalArgumentException("La hora de inicio debe ser menor que la hora de fin.");
-
-        if (start.isBefore(now.plusMinutes(10)))
-            throw new IllegalArgumentException("Reserva con al menos 10 minutos de anticipación.");
-
-        long duration = Duration.between(start, end).toMinutes();
-        if (duration < 60)
-            throw new IllegalArgumentException("La duración mínima de una reserva es 1 hora.");
-
-        // Bloqueo pesimista para evitar doble reserva simultánea
-        boolean overlapExists = !reservationRepository.findOverlappingReservationsWithLock(
-                court.getId(), date, startTime, endTime
-        ).isEmpty();
-
-        if (overlapExists) {
-            throw new IllegalStateException("La cancha ya tiene una reserva en este horario. Intenta otro horario.");
         }
 
-        // Crear la reserva
+        // Si es hoy, la hora de inicio debe ser posterior a la actual
+        if (date.isEqual(today) && startTime.isBefore(now)) {
+            throw new IllegalArgumentException("La hora de inicio debe ser posterior a la actual.");
+        }
+
+        // Hora de inicio menor que hora de fin
+        if (!startTime.isBefore(endTime)) {
+            throw new IllegalArgumentException("La hora de inicio debe ser menor que la hora de fin.");
+        }
+
+        // Duración mínima de 1 hora
+        if (Duration.between(startTime, endTime).toMinutes() < 60) {
+            throw new IllegalArgumentException("La duración mínima de una reserva es de 1 hora.");
+        }
+
+        // Anticipación mínima de 10 minutos (solo aplica si es hoy)
+        if (date.isEqual(today) && Duration.between(now, startTime).toMinutes() < 10) {
+            throw new IllegalArgumentException("Debe realizar la reserva con al menos 10 minutos de anticipación.");
+        }
+
+        // --- Verificación de solapamientos (bloqueo pesimista) ---
+        List<Reservation> overlapping = reservationRepository.findOverlappingReservationsWithLock(
+                court.getId(), date, startTime, endTime
+        ).stream()
+        .filter(r -> List.of("PENDING", "CONFIRMED", "REACTIVATED").contains(r.getStatus()))
+        .toList();
+
+        if (!overlapping.isEmpty()) {
+            Reservation conflict = overlapping.get(0); // la más cercana
+            String mensaje = String.format(
+                "Ya existe una reserva activa desde %s hasta %s.",
+                conflict.getStartTime(), conflict.getEndTime()
+            );
+            throw new IllegalStateException(mensaje);
+        }
+
+        // --- Crear nueva reserva ---
         Reservation newReservation = new Reservation(date, startTime, endTime, user, court);
         newReservation.setStatus("PENDING");
 
@@ -180,27 +197,27 @@ public class ReservationService {
 
     @Transactional
     public Reservation updateReservation(Reservation reservation) {
-        // Validar conflictos de horario
-        boolean overlapExists = reservationRepository.existsOverlappingReservationExcludingId(
+        List<Reservation> conflicts = reservationRepository.findActiveOverlappingReservationsOrdered(
                 reservation.getCourt().getId(),
                 reservation.getDate(),
                 reservation.getStartTime(),
-                reservation.getEndTime(),
-                reservation.getId()
-        );
+                reservation.getEndTime()
+        ).stream()
+        .filter(r -> !r.getId().equals(reservation.getId())) // excluir la misma
+        .toList();
 
-        if (overlapExists) {
-            throw new IllegalStateException("La cancha ya tiene una reserva en este horario. Intenta otro horario.");
+        if (!conflicts.isEmpty()) {
+            Reservation conflict = conflicts.get(0);
+            String mensaje = String.format(
+                "Conflicto de horario con otra reserva: desde %s hasta %s.",
+                conflict.getStartTime(), conflict.getEndTime()
+            );
+            throw new IllegalStateException(mensaje);
         }
 
-        // Guardar cambios
-        Reservation updated = reservationRepository.save(reservation);
-
-        // Notificar cambios al usuario
-        notifyReservationEdited(updated);
-
-        return updated;
+        return reservationRepository.save(reservation);
     }
+
 
     /** Método centralizado para notificar edición de reserva */
     @Transactional

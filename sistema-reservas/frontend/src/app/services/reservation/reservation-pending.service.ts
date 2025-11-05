@@ -12,8 +12,8 @@ interface PendingData {
   reservationId: string;
   reservationCode: string;
   courtName: string;
-  startTime: string;
-  endTime: string;
+  startTime: string; 
+  endTime: string;   
   expireAt: number;
   originalExpireAt: number;
   extended: boolean;
@@ -33,7 +33,6 @@ export class ReservationPendingService implements OnDestroy {
 
   private readonly uiIntervalMs = 1000;
   private readonly backendCheckIntervalMs = 5000;
-  
 
   reservationCancelled = new Subject<{ reservationId: string; reason: 'auto' | 'manual' | 'admin' | 'server' }>();
   reservationStarted = new Subject<void>();
@@ -43,30 +42,28 @@ export class ReservationPendingService implements OnDestroy {
     private http: HttpClient,
     private ngZone: NgZone,
     private notificationService: NotificationService,
-    private router: Router, 
+    private router: Router,
     private auth: AuthService
   ) {
-    // Restaurar reserva si ya hay token activo
+    // Restaurar si el usuario ya está logueado
     if (this.auth.isLogged()) {
       this.restorePreviousState();
     }
 
-    // Restaurar snackbar si el usuario inicia sesión después
+    // Restaurar después de login
     this.auth.userEmail$.subscribe(email => {
-      if (email) {
-        this.restorePreviousState();
-      }
+      if (email) this.restorePreviousState();
     });
 
-    // Restaurar snackbar si el usuario navega
+    // 🔹 Restaurar si cambia de ruta
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       if (this.activeReservation && !this.snackRef) {
         const remaining = this.activeReservation.expireAt - Date.now();
         if (remaining > 0) {
           this.showNotification(
             this.activeReservation.courtName,
-            this.activeReservation.startTime,
-            this.activeReservation.endTime,
+            this.activeReservation.startTime, 
+            this.activeReservation.endTime,   
             remaining
           );
         }
@@ -78,7 +75,7 @@ export class ReservationPendingService implements OnDestroy {
 
   startPendingReservation(
     id: string, code: string, remainingMs: number,
-    courtName: string, startTime: string, endTime: string
+    courtName: string, startTime: string, endTime: string // ✅ HH:mm
   ) {
     if (this.activeReservation && this.activeReservation.reservationId === id) {
       const remainingInMem = Math.max(0, this.activeReservation.expireAt - Date.now());
@@ -97,15 +94,15 @@ export class ReservationPendingService implements OnDestroy {
         if (parsed.reservationId === id && parsed.expireAt > Date.now()) {
           expireAt = parsed.expireAt;
         }
-      } catch { }
+      } catch {}
     }
 
     this.activeReservation = {
       reservationId: id,
       reservationCode: code,
       courtName,
-      startTime,
-      endTime,
+      startTime, 
+      endTime,   
       expireAt,
       originalExpireAt: expireAt,
       extended: false
@@ -122,7 +119,7 @@ export class ReservationPendingService implements OnDestroy {
   reactivateReservation() {
     if (!this.activeReservation) return;
 
-    const duration = 3 * 60 * 1000; // 3 minutos
+    const duration = 3 * 60 * 1000; // 3 min
     this.activeReservation.expireAt = Date.now() + duration;
     this.activeReservation.originalExpireAt = this.activeReservation.expireAt;
     this.activeReservation.reactivated = true;
@@ -142,7 +139,6 @@ export class ReservationPendingService implements OnDestroy {
     this.setAutoCancelTimer(duration);
     this.startBackendPolling();
 
-    // Notificar a otros componentes
     this.ngZone.run(() => this.reservationStarted.next());
 
     this.showCriticalNotification(
@@ -182,7 +178,7 @@ export class ReservationPendingService implements OnDestroy {
   // Llamada desde temporizador de expiración
   private autoCancelReservation() {
     if (!this.activeReservation) return;
-    this.cancelReservation(true); // auto = true
+    this.cancelReservation(true);
   }
 
   // Ajuste en cancelReservation
@@ -266,6 +262,13 @@ export class ReservationPendingService implements OnDestroy {
     this.backendCheckSub = timer(0, this.backendCheckIntervalMs).subscribe(() => {
       if (!this.activeReservation) return;
 
+      // Verificación local adicional
+      if (Date.now() >= this.activeReservation.expireAt && !this.isCancelling) {
+        console.warn('Reserva expirada localmente, cancelando...');
+        this.ngZone.run(() => this.cancelReservation(true));
+        return;
+      }
+
       const id = this.activeReservation.reservationId;
       this.http.get<{ status: string; courtName?: string; startTime?: string; endTime?: string }>(
         `http://localhost:8080/api/reservations/${id}/status`
@@ -285,20 +288,11 @@ export class ReservationPendingService implements OnDestroy {
         if (!active.reactivated) this.reactivateReservation();
         break;
       case 'CANCELLED':
-        // Cancelación por admin
-        this.showCriticalNotification(
-          'La reserva fue cancelada por el administrador.',
-          'error',
-          4000
-        );
-        this.finalizeCancellation(true, 'admin'); // <-- ahora indica admin
+        this.showCriticalNotification('La reserva fue cancelada por el administrador.', 'error', 4000);
+        this.finalizeCancellation(true, 'admin');
         break;
       case 'CONFIRMED':
-        this.showCriticalNotification(
-          'La reserva fue confirmada en el servidor.',
-          'success',
-          4000
-        );
+        this.showCriticalNotification('La reserva fue confirmada en el servidor.', 'success', 4000);
         this.finalizeCancellation(true, 'server');
         break;
       default:
@@ -310,13 +304,11 @@ export class ReservationPendingService implements OnDestroy {
     const active = this.activeReservation;
     if (!active) return;
 
-    const normalize = (s: string | undefined) =>
-      s?.trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, '') ?? '';
-
+    // Sin conversiones, se comparan directamente HH:mm
     const changed =
-      normalize(res.courtName) !== normalize(active.courtName) ||
-      normalize(res.startTime) !== normalize(active.startTime) ||
-      normalize(res.endTime) !== normalize(active.endTime);
+      res.courtName !== active.courtName ||
+      res.startTime !== active.startTime ||
+      res.endTime !== active.endTime;
 
     if (changed) {
       this.updateActiveReservation({
@@ -325,11 +317,7 @@ export class ReservationPendingService implements OnDestroy {
         endTime: res.endTime ?? active.endTime
       });
 
-      this.showCriticalNotification(
-        'La reserva fue modificada por el administrador.',
-        'info',
-        4000
-      );
+      this.showCriticalNotification('La reserva fue modificada por el administrador.', 'info', 4000);
     }
   }
 
@@ -403,19 +391,12 @@ export class ReservationPendingService implements OnDestroy {
   private showNotification(court: string, start: string, end: string, durationMs: number) {
     if (!this.activeReservation) return;
 
-    const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
-
-    if (this.snackRef) {
-      this.snackRef.instance.updateRemaining(remaining);
-      return;
-    }
-
     const data: PendingSnackbarData = {
       reservationId: this.activeReservation.reservationId,
       reservationCode: this.activeReservation.reservationCode,
       courtName: court,
-      startTime: start,
-      endTime: end,
+      startTime: start, 
+      endTime: end,     
       expireAt: this.activeReservation.expireAt
     };
 
@@ -599,7 +580,7 @@ export class ReservationPendingService implements OnDestroy {
   }
 
   private isUserLoggedIn(): boolean {
-    return !!this.auth.isLogged(); // o tu método para verificar sesión
+    return !!this.auth.isLogged();
   }
 
   /** Limpia todo estado de reservas pendiente al cerrar sesión */

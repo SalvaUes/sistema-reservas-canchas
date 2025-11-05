@@ -1,2 +1,14 @@
 # Ignorar directorio de compilación de Maven
 /target/
+
+# Java build output
+backend/target/
+
+# Env files
+.env_local
+
+# IDE configs
+.vscode/
+
+# Spring boot meta
+backend/src/main/resources/META-INF/

@@ -29,11 +29,11 @@ public class Reservation {
     private LocalDate date;
 
     @Column(nullable = false)
-    @JsonFormat(pattern = "HH:mm:ss")
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
 
     @Column(nullable = false)
-    @JsonFormat(pattern = "HH:mm:ss")
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
 
     private String status = "PENDING"; // "PENDING", "CONFIRMED", "CANCELLED"

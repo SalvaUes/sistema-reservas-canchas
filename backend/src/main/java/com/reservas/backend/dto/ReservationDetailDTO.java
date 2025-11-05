@@ -6,11 +6,18 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 public class ReservationDetailDTO {
 
     private final String courtName;
+
+    @JsonFormat(pattern = "HH:mm")
     private final LocalTime startTime;
+
+    @JsonFormat(pattern = "HH:mm")
     private final LocalTime endTime;
+
     private final BigDecimal pricePerHour;
     private final BigDecimal totalPrice;
     private final LocalDate date; // opcional si quieres combinar con UTC

@@ -138,7 +138,6 @@ export class MisReservasComponent implements OnInit, OnDestroy {
     const userId = this.auth.getUserId();
     if (!userId) return;
 
-    // Solo refrescar contadores si no se recarga del backend
     if (!reloadFromServer) {
       this.filterReservations();
       return;
@@ -146,40 +145,49 @@ export class MisReservasComponent implements OnInit, OnDestroy {
 
     this.http.get<ReservationDTO[]>(`http://localhost:8080/api/reservations/user/${userId}`)
       .subscribe(res => {
-        // Formatear horas a 12h
+
         this.reservations = res.map(r => {
+          // Guardar valores originales para notificación
+          (r as any).startTimeRaw = r.startTime;
+          (r as any).endTimeRaw = r.endTime;
+
           const start = new Date(`${r.date}T${r.startTime}`);
           const end = new Date(`${r.date}T${r.endTime}`);
+
+          // Convertir solo para tabla
           r.startTime = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
           r.endTime = end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+
           return r;
         });
 
-        // Filtrar y paginar
         this.filterReservations();
 
-        // Buscar reserva pendiente o reactivada
-        const activePending = this.reservations.find(r => r.status === 'PENDING' || r.status === 'REACTIVATED');
+        const activePending = this.reservations.find(
+          r => r.status === 'PENDING' || r.status === 'REACTIVATED'
+        );
         if (!activePending) return;
 
         const active = this.pendingService.getActiveReservation();
         const remaining = this.pendingService.getRemainingTime(activePending.id) ?? 3 * 60 * 1000;
 
-        // Iniciar o actualizar reserva pendiente en el servicio
+        // Usar los valores originales aquí ✅
+        const rawStart = (activePending as any).startTimeRaw;
+        const rawEnd = (activePending as any).endTimeRaw;
+
         if (!active || active.reservationId !== activePending.id) {
           this.pendingService.startPendingReservation(
             activePending.id,
             activePending.code,
             remaining,
             activePending.courtName,
-            activePending.startTime,
-            activePending.endTime
+            rawStart,
+            rawEnd
           );
         } else {
-          // Actualizar info si cambió sin reiniciar contador
           if (
-            active.startTime !== activePending.startTime ||
-            active.endTime !== activePending.endTime ||
+            active.startTime !== rawStart ||
+            active.endTime !== rawEnd ||
             active.courtName !== activePending.courtName
           ) {
             this.pendingService.startPendingReservation(
@@ -187,8 +195,8 @@ export class MisReservasComponent implements OnInit, OnDestroy {
               activePending.code,
               remaining,
               activePending.courtName,
-              activePending.startTime,
-              activePending.endTime
+              rawStart,
+              rawEnd
             );
           }
         }

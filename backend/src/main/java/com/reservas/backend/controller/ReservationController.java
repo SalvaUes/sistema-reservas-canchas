@@ -136,7 +136,10 @@ public class ReservationController {
         Optional<User> userOpt = userRepository.findById(request.getUserId());
 
         if (courtOpt.isEmpty() || userOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body("Usuario o cancha no encontrados.");
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", "Usuario o cancha no encontrados."
+            ));
         }
 
         try {
@@ -151,15 +154,35 @@ public class ReservationController {
                     .toUri();
 
             return ResponseEntity.created(location).body(toDTO(newReservation));
+
         } catch (IllegalStateException | IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+
+            // Buscar formato especial si el mensaje viene del service con horas
+            if (e.getMessage() != null && e.getMessage().contains("reserva activa desde")) {
+                String[] partes = e.getMessage().split("desde|hasta");
+                String start = partes.length > 1 ? partes[1].trim() : "";
+                String end = partes.length > 2 ? partes[2].replace(".", "").trim() : "";
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "status", "conflict",
+                    "message", e.getMessage(),
+                    "conflictStart", start,
+                    "conflictEnd", end
+                ));
+            }
+
+            // Errores normales
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
         }
     }
 
     // Editar reserva completa
     @PutMapping("/{id}")
-    public ResponseEntity<ReservationDTO> updateReservation(@PathVariable UUID id,
-                                                            @RequestBody ReservationRequest request) {
+    public ResponseEntity<Object> updateReservation(@PathVariable UUID id,
+                                                    @RequestBody ReservationRequest request) {
         Optional<Reservation> existingOpt = reservationService.findReservationById(id);
         if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
 
@@ -183,11 +206,27 @@ public class ReservationController {
         if (request.getStatus() != null) reservation.setStatus(request.getStatus());
 
         try {
-            // Usar el método del service que valida + notifica
             Reservation updated = reservationService.updateReservation(reservation);
             return ResponseEntity.ok(toDTO(updated));
+
         } catch (IllegalStateException | IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(null);
+            if (e.getMessage() != null && e.getMessage().contains("Conflicto de horario")) {
+                String[] partes = e.getMessage().split("desde|hasta");
+                String start = partes.length > 1 ? partes[1].trim() : "";
+                String end = partes.length > 2 ? partes[2].replace(".", "").trim() : "";
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "status", "conflict",
+                    "message", e.getMessage(),
+                    "conflictStart", start,
+                    "conflictEnd", end
+                ));
+            }
+
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
         }
     }
 

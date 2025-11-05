@@ -48,6 +48,26 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
         @Param("endTime") LocalTime endTime
     );
 
+    // -------------------------
+    // Devuelve las reservas activas que se solapan, ordenadas por hora de inicio
+    // -------------------------
+    @Query("""
+        SELECT r FROM Reservation r
+        WHERE r.court.id = :courtId
+        AND r.date = :date
+        AND r.status IN ('PENDING', 'CONFIRMED', 'REACTIVATED')
+        AND r.startTime < :endTime
+        AND r.endTime > :startTime
+        ORDER BY r.startTime ASC
+    """)
+    List<Reservation> findActiveOverlappingReservationsOrdered(
+        @Param("courtId") UUID courtId,
+        @Param("date") LocalDate date,
+        @Param("startTime") LocalTime startTime,
+        @Param("endTime") LocalTime endTime
+    );
+
+
     // Verifica si existe solapamiento (booleano)
     @Query("""
         SELECT CASE WHEN COUNT(r) > 0 THEN TRUE ELSE FALSE END

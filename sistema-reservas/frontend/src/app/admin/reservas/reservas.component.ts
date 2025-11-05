@@ -496,29 +496,49 @@ export class ReservasComponent implements OnInit, OnDestroy {
   }
 
   submitForm() {
+    // Crear nueva reserva (ADMIN)
     if (!this.editMode) {
       if (!this.validateReservation(false)) return;
+
       const dialogRef = this.dialog.open(ConfirmDialogComponent, {
         width: '350px',
         data: { title: 'Confirmar creación', message: `¿Desea crear la nueva reservación?` }
       });
+
       dialogRef.afterClosed().subscribe(result => {
         if (!result) return;
+
         const payload = this.buildPayload();
+
+        // Validar solapamiento antes de crear
+        const overlap = this.reservations.some(r =>
+          r.courtId === payload.courtId &&
+          r.date === payload.date &&
+          ['PENDING', 'ACTIVE'].includes(r.status) &&
+          this.isOverlap(payload.startTime, payload.endTime, r.startTime, r.endTime)
+        );
+
+        if (overlap) {
+          this.showMessage('Ya existe una reserva pendiente o activa en este horario.', 'warning');
+          return;
+        }
+
         this.http.post<ReservationDTO>(this.endpoint('/reservations'), payload).subscribe({
           next: created => {
-            // map names & display times
             const user = this.users.find(u => u.id === created.userId);
             created.userFullName = user ? `${user.firstName} ${user.lastName}` : '';
             const court = this.courts.find(c => c.id === created.courtId);
             created.courtName = court ? court.name : '';
             created.selected = false;
-            created.startTime = this.format24To12(this.to24ForComparison(created.startTime));
-            created.endTime = this.format24To12(this.to24ForComparison(created.endTime));
+
+            // Mantener formato 24h directamente
             this.reservations.push(created);
             this.filterReservations();
             this.cancelForm();
-            this.showMessage(`Reservación creada para "${created.userFullName}" en cancha "${created.courtName}".`, 'success');
+            this.showMessage(
+              `Reservación creada para "${created.userFullName}" en cancha "${created.courtName}".`,
+              'success'
+            );
           },
           error: err => {
             console.error(err);
@@ -530,32 +550,54 @@ export class ReservasComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Edit mode
+    // Editar reserva existente (ADMIN)
     if (!this.editingReservationId) return;
+
     const original = this.reservations.find(r => r.id === this.editingReservationId);
     if (!original) return;
 
-    // Convert displays first
-    this.startTime = this.parse12hTo24(this.startTimeDisplay);
-    this.endTime = this.parse12hTo24(this.endTimeDisplay);
-
-    if (original.status === 'CONFIRMED' || original.status === 'FINISHED') {
-      this.showMessage('No se puede editar una reserva confirmada o finalizada.', 'warning');
+    // No permitir editar reservas finalizadas
+    if (original.status === 'FINISHED') {
+      this.showMessage('No se puede editar una reserva finalizada.', 'warning');
       return;
     }
+
+    // Ya estamos usando HH:mm → no se necesita convertir
+    if (!this.validateReservation(true)) return;
 
     const payload: any = {};
     if (this.userId !== null && this.userId !== original.userId) payload.userId = this.userId;
     if (this.courtId && this.courtId !== original.courtId) payload.courtId = this.courtId;
     if (this.reservationDate && this.reservationDate !== original.date) payload.date = this.reservationDate;
     if (this.status && this.status !== original.status) payload.status = this.status;
-    if (this.startTime && this.startTime !== this.to24ForComparison(original.startTime)) payload.startTime = this.startTime;
-    if (this.endTime && this.endTime !== this.to24ForComparison(original.endTime)) payload.endTime = this.endTime;
+    if (this.startTime && this.startTime !== original.startTime) payload.startTime = this.startTime;
+    if (this.endTime && this.endTime !== original.endTime) payload.endTime = this.endTime;
 
-    if (Object.keys(payload).length === 0) { this.showMessage('No se detectaron cambios en la reservación.', 'warning'); return; }
+    if (Object.keys(payload).length === 0) {
+      this.showMessage('No se detectaron cambios en la reservación.', 'warning');
+      return;
+    }
 
-    if (!this.validateReservation(true)) return;
+    // Validar solapamiento antes de editar
+    const overlap = this.reservations.some(r =>
+      r.id !== this.editingReservationId &&
+      r.courtId === (payload.courtId ?? original.courtId) &&
+      r.date === (payload.date ?? original.date) &&
+      ['PENDING', 'ACTIVE'].includes(r.status) &&
+      this.isOverlap(
+        payload.startTime ?? original.startTime,
+        payload.endTime ?? original.endTime,
+        r.startTime,
+        r.endTime
+      )
+    );
 
+    if (overlap) {
+      this.showMessage('Ya existe una reserva pendiente o activa en este horario.', 'warning');
+      return;
+    }
+
+    // Confirmar actualización
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '350px',
       data: { title: 'Confirmar actualización', message: `¿Desea guardar los cambios de esta reservación?` }
@@ -563,6 +605,7 @@ export class ReservasComponent implements OnInit, OnDestroy {
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
+
       this.http.put<ReservationDTO>(this.endpoint(`/reservations/${this.editingReservationId}`), payload).subscribe({
         next: updated => {
           const index = this.reservations.findIndex(r => r.id === this.editingReservationId);
@@ -572,14 +615,11 @@ export class ReservasComponent implements OnInit, OnDestroy {
             const court = this.courts.find(c => c.id === updated.courtId);
             updated.courtName = court ? court.name : '';
             updated.selected = false;
-            updated.startTime = this.format24To12(this.to24ForComparison(updated.startTime));
-            updated.endTime = this.format24To12(this.to24ForComparison(updated.endTime));
             this.reservations[index] = updated;
-            this.filterReservations();
           }
-          this.cancelForm();
-          this.showMessage(`Reservación actualizada para "${updated.code}".`, 'success');
           this.filterReservations();
+          this.cancelForm();
+          this.showMessage(`Reservación actualizada correctamente.`, 'success');
         },
         error: err => {
           console.error(err);
@@ -588,6 +628,11 @@ export class ReservasComponent implements OnInit, OnDestroy {
         }
       });
     });
+  }
+
+  /** Verifica si dos intervalos de tiempo se solapan (HH:mm) */
+  private isOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+    return startA < endB && endA > startB;
   }
 
   // ---------------- Operaciones individuales ----------------

@@ -2,21 +2,29 @@ package com.reservas.backend.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 public class InvoiceDTO {
-    private String invoiceNumber;      // Código de factura: INV-xxxx
+    private String invoiceNumber;
     private String customerName;
     private String customerEmail;
     private String customerPhone;
     private BigDecimal amount;
-    private String method;             // Método de pago: CARD / CASH
-    private String status;             // Estado del pago: CONFIRMED
+    private String method;
+    private String status;
     private LocalDateTime paymentDate;
-    private String reservationCode;    // Código legible de reserva: R-xxxxxxx
+    private String reservationCode;
+
+    // Nuevos campos
+    private String courtCode;          
+    private String courtName;          
+    private LocalTime startTime;
+    private LocalTime endTime;
 
     public InvoiceDTO(String invoiceNumber, String customerName, String customerEmail,
                       String customerPhone, BigDecimal amount, String method,
-                      String status, LocalDateTime paymentDate, String reservationCode) {
+                      String status, LocalDateTime paymentDate, String reservationCode,
+                      String courtCode, String courtName, LocalTime startTime, LocalTime endTime) {
         this.invoiceNumber = invoiceNumber;
         this.customerName = customerName;
         this.customerEmail = customerEmail;
@@ -25,7 +33,11 @@ public class InvoiceDTO {
         this.method = method;
         this.status = status;
         this.paymentDate = paymentDate;
-        this.reservationCode = reservationCode; // ya debe venir como R-XXXXXXX
+        this.reservationCode = reservationCode;
+        this.courtCode = courtCode;
+        this.courtName = courtName;
+        this.startTime = startTime;
+        this.endTime = endTime;
     }
 
     // Getters y setters
@@ -55,4 +67,16 @@ public class InvoiceDTO {
 
     public String getReservationCode() { return reservationCode; }
     public void setReservationCode(String reservationCode) { this.reservationCode = reservationCode; }
+
+    public String getCourtCode() { return courtCode; }
+    public void setCourtCode(String courtCode) { this.courtCode = courtCode; }
+
+    public String getCourtName() { return courtName; }
+    public void setCourtName(String courtName) { this.courtName = courtName; }
+
+    public LocalTime getStartTime() { return startTime; }
+    public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
+
+    public LocalTime getEndTime() { return endTime; }
+    public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
 }

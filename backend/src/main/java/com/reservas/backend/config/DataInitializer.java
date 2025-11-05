@@ -1,9 +1,6 @@
 package com.reservas.backend.config;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -13,9 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.reservas.backend.controller.CourtController;
 import com.reservas.backend.model.Court;
-import com.reservas.backend.model.Payment;
-import com.reservas.backend.model.PaymentMethod;
-import com.reservas.backend.model.Reservation;
 import com.reservas.backend.model.Role;
 import com.reservas.backend.model.User;
 import com.reservas.backend.repository.PaymentRepository;
@@ -61,39 +55,6 @@ public class DataInitializer {
                 courtService.saveCourt(new Court("Cancha de Básquetbol", "Techada", "Básquetbol", new BigDecimal("40.00")));
             }
 
-            // --- Crear reserva pendiente ---
-            // --- Crear reserva pendiente ---
-            if (!reservationRepo.existsByUserAndStatus(usuario, "PENDING")) {
-                Court cancha = courtService.findAllCourts().get(0); // primera cancha
-                Reservation reserva = new Reservation();
-                reserva.setUser(usuario);
-                reserva.setCourt(cancha);
-                reserva.setDate(LocalDate.now());
-                reserva.setStartTime(LocalTime.of(15, 0));
-                reserva.setEndTime(LocalTime.of(16, 0));
-                reserva.setStatus("PENDING");
-
-                // Guardamos primero para generar UUID
-                reserva = reservationRepo.save(reserva);
-
-                // Generar código legible tipo "R-XXXXXX"
-                String code = "R-" + reserva.getId().toString().substring(0, 6).toUpperCase();
-                reserva.setCode(code);
-                reservationRepo.save(reserva); // actualizar con el código
-
-                // --- Opcional: crear un pago simulado ---
-                Payment pago = new Payment(
-                        cancha.getPricePerHour(),
-                        PaymentMethod.CARD,
-                        reserva,
-                        usuario.getFirstName() + " " + usuario.getLastName(),
-                        usuario.getEmail(),
-                        usuario.getPhoneNumber()
-                );
-                pago.setStatus("CONFIRMED");
-                pago.setPaymentDate(LocalDateTime.now());
-                paymentRepo.save(pago);
-            }
 
         };
     }

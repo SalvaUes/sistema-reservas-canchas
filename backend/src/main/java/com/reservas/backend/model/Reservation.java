@@ -5,6 +5,8 @@ import java.time.LocalTime;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -23,12 +25,15 @@ public class Reservation {
     private String code; // Código legible de reserva (ej: R-AB12CD34)
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate date;
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
 
     private String status = "PENDING"; // "PENDING", "CONFIRMED", "CANCELLED"

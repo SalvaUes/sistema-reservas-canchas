@@ -1,73 +1,292 @@
+/* ================================================
+ 💳 Sección de métodos de pago mejorada
+================================================= */
+
 .payment-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 2rem auto;
-  padding: 1rem;
-  max-width: 700px;
+  margin: 2.5rem auto;
+  padding: 2rem 1rem;
+  max-width: 900px;
   text-align: center;
+  font-family: 'Roboto', sans-serif;
+
+  /* 🌄 Fondo moderno con degradado */
+  background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.5s ease-in-out;
+
+  h2 {
+    margin-bottom: 2rem;
+    font-size: 1.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    letter-spacing: 0.3px;
+  }
 }
 
-.payment-wrapper h2 {
-  margin-bottom: 1.5rem;
-  font-size: 1.6rem;
-  font-weight: bold;
-  color: #333;
-}
-
+/* Contenedor de tarjetas */
 .cards-container {
   display: flex;
-  gap: 1.5rem;
   flex-wrap: wrap;
   justify-content: center;
+  gap: 1.75rem;
   width: 100%;
 }
 
+/* Tarjetas individuales */
 .card {
   background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  flex: 1 1 250px;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  padding: 1.8rem 1.5rem;
+  flex: 1 1 260px;
   cursor: pointer;
   text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #1e88e5;
+    transition: transform 0.3s ease;
+  }
+
+  h3 {
+    margin: 0.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  p {
+    font-size: 0.95rem;
+    color: #555;
+    line-height: 1.4;
+  }
+
+  &:hover {
+    transform: translateY(-8px) scale(1.04);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+
+    i {
+      transform: scale(1.1) rotate(-5deg);
+    }
+  }
+
+  &:active {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
 }
 
-.card i {
-  margin-bottom: 1rem;
-}
-
-.card h3 {
-  margin: 0.5rem 0;
-  font-size: 1.2rem;
-}
-
-.card p {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.card:hover {
-  transform: translateY(-8px) scale(1.03);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-}
-
-/* Estilos individuales para las tarjetas */
+/* Tarjeta: Pago con tarjeta */
 .card-card {
   background: linear-gradient(135deg, #2264af, #034791);
   color: #fff;
+  box-shadow: 0 6px 20px rgba(33, 100, 175, 0.4);
+
+  i, h3, p {
+    color: #fff;
+  }
+
+  &:hover {
+    background: linear-gradient(135deg, #297be6, #02346e);
+  }
 }
 
-.card-card i, .card-card h3, .card-card p {
-  color: #fff;
-}
-
+/* Tarjeta: Pago en efectivo */
 .card-cash {
   background: linear-gradient(135deg, #27ae60, #145a32);
   color: #fff;
+  box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+
+  i, h3, p {
+    color: #fff;
+  }
+
+  &:hover {
+    background: linear-gradient(135deg, #2ecc71, #0f3e1f);
+  }
 }
 
-.card-cash i, .card-cash h3, .card-cash p {
-  color: #fff;
+/* Animación de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsivo */
+@media (max-width: 640px) {
+  .payment-wrapper {
+    padding: 1.25rem;
+    background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%);
+  }
+
+  .card {
+    flex: 1 1 100%;
+    padding: 1.25rem;
+  }
+
+  .payment-wrapper h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+}
+
+// ========================================
+// Complemento
+// ========================================
+
+.invoice-card {
+  padding: 28px 32px;
+  max-width: 520px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: 'Roboto', sans-serif;
+  animation: fadeInUp 0.35s ease-out;
+
+  // --- Título principal ---
+  h2 {
+    margin: 0;
+    font-size: 1.9rem;
+    font-weight: 600;
+    text-align: center;
+    color: #1e1e1e;
+    letter-spacing: 0.3px;
+  }
+
+  // --- Contenido de la caja ---
+  .invoice-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 1rem;
+    color: #444;
+
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    strong {
+      color: #222;
+      font-weight: 600;
+    }
+  }
+
+  // --- Contenedor de acciones (botones) ---
+  .invoice-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 16px;
+
+    button {
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border-radius: 10px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+      }
+
+      &:active {
+        transform: translateY(0);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+      }
+    }
+
+    .btn-pdf {
+      background-color: #1976d2; // Azul Material
+      color: #fff;
+
+      &:hover {
+        background-color: #1565c0;
+      }
+    }
+
+    .btn-close {
+      background-color: #d32f2f; // Rojo Material
+      color: #fff;
+
+      &:hover {
+        background-color: #b71c1c;
+      }
+    }
+  }
+}
+
+// ========================================
+// 🧩 Estilos globales del diálogo (Angular Material)
+// ========================================
+
+/* Elimina relleno interno del contenedor del diálogo */
+::ng-deep .mat-dialog-container {
+  padding: 0 !important;
+  border-radius: 18px !important;
+  background: transparent !important; // el fondo viene de .invoice-card
+  box-shadow: none !important;
+}
+
+/* Ajusta la superficie del diálogo para mejor presentación */
+::ng-deep .mat-mdc-dialog-surface {
+  border-radius: 18px !important;
+  overflow: visible !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+/* Centra el diálogo en pantallas grandes */
+::ng-deep .cdk-overlay-pane {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* Hace el fondo del overlay ligeramente translúcido */
+::ng-deep .cdk-overlay-backdrop {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(2px);
+}
+
+// ========================================
+// ✨ Animaciones
+// ========================================
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }

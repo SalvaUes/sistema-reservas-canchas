@@ -40,6 +40,8 @@ public class User {
 
     private String phoneNumber;
     private LocalDate dateOfBirth; // Opcional
+
+    @Column(nullable = false)
     private String status = "ACTIVE"; // "ACTIVE" o "INACTIVE"
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)

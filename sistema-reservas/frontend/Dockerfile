@@ -1,39 +1,34 @@
 # ================================
-# Etapa 1: Build de Angular
+# Etapa 1: Build y Dependencias
 # ================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copiar package.json y package-lock.json para instalar dependencias
+# 1. Copiar archivos de definición de dependencias
 COPY package*.json ./
 
-# Instalar dependencias del proyecto
-RUN npm ci
+# 2. Instalar dependencias IGNORANDO conflictos de versiones
+# Usamos --legacy-peer-deps para solucionar el error ERESOLVE de Angular
+RUN npm ci --legacy-peer-deps
 
-# Instalar explícitamente las librerías 
-RUN npm install @stomp/stompjs jwt-decode
-
-# Instalar Angular CLI globalmente
-RUN npm install -g @angular/cli
-
-# Copiar el resto del código fuente
+# 3. Copiar el código fuente
 COPY . .
 
 # ================================
-# Etapa 2: Runtime con Node (ng serve)
+# Etapa 2: Runtime (Desarrollo/Preview)
 # ================================
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar todo desde la etapa de build
+# Copiar TODO (código + node_modules) desde la etapa de build
 COPY --from=builder /app /app
 
-# Instalar Angular CLI globalmente para ng serve
-RUN npm install -g @angular/cli
+# NOTA: Usamos el binario local instalado en node_modules
+# Esto evita tener que instalar Angular CLI globalmente y ahorra espacio
 
 EXPOSE 4200
 
-# Comando de inicio
-CMD ["ng", "serve", "--host", "0.0.0.0", "--port", "4200"]
+# Ejecutamos el binario local directamente
+CMD ["./node_modules/.bin/ng", "serve", "--host", "0.0.0.0", "--port", "4200"]

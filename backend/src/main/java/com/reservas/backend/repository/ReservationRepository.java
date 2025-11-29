@@ -22,9 +22,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     // -------------------------
     // Búsquedas básicas
     // -------------------------
+    List<Reservation> findByUser(User user);
+    
     List<Reservation> findByCourtIdAndDate(UUID courtId, LocalDate date);
     List<Reservation> findByUserId(Long userId);
-    List<Reservation> findByUser(User user);
     boolean existsByUserAndStatus(User user, String status);
     boolean existsByCode(String code);
 

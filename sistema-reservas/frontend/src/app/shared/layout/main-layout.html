@@ -1,0 +1,65 @@
+<div class="dashboard">
+  <aside 
+    class="side-panel" 
+    [ngClass]="[isSidePanelClosed ? 'closed' : '', themeClass]"
+    (mouseenter)="hoverPanel(true)"
+    (mouseleave)="hoverPanel(false)"
+  >
+    <button class="toggle-btn" (click)="toggleSidePanel()">
+      {{ isSidePanelClosed ? '☰' : '✕' }}
+    </button>
+
+    <h2 [class.hidden]="isSidePanelClosed">Sistema</h2>
+
+    <nav>
+      <!-- ADMIN LINKS -->
+      <ng-container *ngIf="userRole === 'ADMIN'">
+        <a routerLink="/admin" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+          <i class="fas fa-home"></i> <span [class.hidden]="isSidePanelClosed">Inicio</span>
+        </a>
+        <a routerLink="/admin/usuarios" routerLinkActive="active">
+          <i class="fas fa-users"></i> <span [class.hidden]="isSidePanelClosed">Usuarios</span>
+        </a>
+        <a routerLink="/admin/canchas" routerLinkActive="active">
+          <i class="fas fa-futbol"></i> <span [class.hidden]="isSidePanelClosed">Canchas</span>
+        </a>
+        <a routerLink="/admin/reservas" routerLinkActive="active">
+          <i class="fas fa-calendar-check"></i> <span [class.hidden]="isSidePanelClosed">Reservas</span>
+        </a>
+      </ng-container>
+
+      <!-- CLIENTE LINKS -->
+      <ng-container *ngIf="userRole !== 'ADMIN'">
+        <a routerLink="/cliente" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+            <i class="fas fa-home"></i> <span [class.hidden]="isSidePanelClosed">Inicio</span>
+        </a>
+        <a routerLink="/cliente/canchas" routerLinkActive="active">
+            <i class="fas fa-futbol"></i> <span [class.hidden]="isSidePanelClosed">Ver Canchas</span>
+        </a>
+        <a routerLink="/cliente/mis-reservas" routerLinkActive="active">
+            <i class="fas fa-calendar-alt"></i> <span [class.hidden]="isSidePanelClosed">Mis Reservas</span>
+        </a>
+      </ng-container>
+
+      <!-- COMUNES -->
+      <a routerLink="/perfil" routerLinkActive="active" class="profile-link">
+        <i class="fas fa-user-circle"></i> 
+        <span [class.hidden]="isSidePanelClosed">Mi Perfil</span>
+      </a>
+    </nav>
+
+    <div class="user-info" [class.hidden]="isSidePanelClosed">
+      <p>{{ userEmail }}</p>
+      <p class="role-text">{{ userRole }}</p>
+    </div>
+
+    <button class="logout-btn" (click)="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      <span [class.hidden]="isSidePanelClosed">Cerrar sesión</span>
+    </button>
+  </aside>
+
+  <main>
+    <router-outlet></router-outlet>
+  </main>
+</div>

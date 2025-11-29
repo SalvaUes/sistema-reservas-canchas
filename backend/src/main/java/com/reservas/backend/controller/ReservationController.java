@@ -9,9 +9,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,125 +27,123 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.reservas.backend.dto.ReservationDTO;
 import com.reservas.backend.dto.ReservationRequest;
-import com.reservas.backend.dto.ReservationUserUpdateDTO;
 import com.reservas.backend.model.Court;
 import com.reservas.backend.model.Reservation;
 import com.reservas.backend.model.User;
 import com.reservas.backend.repository.UserRepository;
+import com.reservas.backend.service.CourtService;
 import com.reservas.backend.service.ReservationService;
 
 @RestController
 @RequestMapping("/api/reservations")
-@CrossOrigin(origins = "http://localhost:4200")
 public class ReservationController {
 
     private final ReservationService reservationService;
-    private final CourtController courtService;
+    private final CourtService courtService;
     private final UserRepository userRepository;
 
     public ReservationController(ReservationService reservationService,
-                                 CourtController courtService,
+                                 CourtService courtService,
                                  UserRepository userRepository) {
         this.reservationService = reservationService;
         this.courtService = courtService;
         this.userRepository = userRepository;
     }
 
-    // Obtener todas las reservas
-    @GetMapping
-    public List<ReservationDTO> getAllReservations() {
-        return reservationService.findAllReservations()
+    @GetMapping("/my")
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
+    public ResponseEntity<List<ReservationDTO>> getMyReservations(@AuthenticationPrincipal Jwt jwt) {
+        String auth0Id = jwt.getSubject();
+        Optional<User> userOpt = userRepository.findByAuth0Id(auth0Id);
+
+        if (userOpt.isEmpty()) {
+            String email = jwt.getClaimAsString("email");
+            if (email != null) {
+                userOpt = userRepository.findByEmail(email);
+            }
+        }
+        
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<ReservationDTO> myReservations = reservationService.findReservationsByUser(userOpt.get())
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
+
+        return ResponseEntity.ok(myReservations);
     }
 
-    // Obtener una reserva por ID
+    @GetMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
+    public ResponseEntity<Map<String, String>> getReservationStatus(@PathVariable UUID id) {
+        return reservationService.findReservationById(id)
+                .map(res -> Map.of(
+                        "status", res.getStatus(),
+                        "courtName", res.getCourt().getName(),
+                        "startTime", res.getStartTime().toString(),
+                        "endTime", res.getEndTime().toString(),
+                        "date", res.getDate().toString(),
+                        "userEmail", res.getUser().getEmail()
+                ))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
+    public ResponseEntity<List<ReservationDTO>> getAllReservations() {
+        return ResponseEntity.ok(
+                reservationService.findAllReservations()
+                        .stream().map(this::toDTO).collect(Collectors.toList())
+        );
+    }
+
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
     public ResponseEntity<ReservationDTO> getReservationById(@PathVariable UUID id) {
         return reservationService.findReservationById(id)
                 .map(res -> ResponseEntity.ok(toDTO(res)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // Obtener reservas por cancha y fecha
     @GetMapping("/court/{courtId}")
-    public List<ReservationDTO> getReservationsByCourtAndDate(
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
+    public ResponseEntity<List<ReservationDTO>> getReservationsByCourtAndDate(
             @PathVariable UUID courtId,
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-
-        return reservationService.findReservationsByCourtAndDate(courtId, date)
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(
+                reservationService.findReservationsByCourtAndDate(courtId, date)
+                        .stream().map(this::toDTO).collect(Collectors.toList())
+        );
     }
 
-    @PatchMapping("/{id}/reactivate")
-    public ResponseEntity<ReservationDTO> reactivateReservation(@PathVariable UUID id) {
-        Optional<Reservation> existing = reservationService.findReservationById(id);
-        if (existing.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-        }
-
-        try {
-            Reservation updated = reservationService.reactivateReservation(id);
-            // Convertir a DTO plano para evitar referencias circulares
-            ReservationDTO dto = toDTO(updated);
-            return ResponseEntity.ok(dto);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(null);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(null);
-        }
-    }
-
-
-    // Reactivación masiva
-    @PatchMapping("/reactivate-bulk")
-    public ResponseEntity<List<Map<String, Object>>> reactivateReservationsBulk(
-            @RequestBody List<UUID> reservationIds) {
-
-        if (reservationIds == null || reservationIds.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(List.of(Map.of("status", "error", "message", "No se proporcionaron IDs de reservas.")));
-        }
-
-        List<Map<String, Object>> results = reservationService.reactivateReservationsBulk(reservationIds);
-        // Cada reactivación dentro del service envía notificación en tiempo real
-        return ResponseEntity.ok(results);
-    }
-
-    // Obtener estado + info de la reserva para polling
-    @GetMapping("/{id}/status")
-    public ResponseEntity<Map<String, String>> getReservationStatus(@PathVariable UUID id) {
-        Optional<Reservation> resOpt = reservationService.findReservationById(id);
-        if (resOpt.isEmpty()) return ResponseEntity.notFound().build();
-
-        Reservation res = resOpt.get();
-        return ResponseEntity.ok(Map.of(
-                "status", res.getStatus(),
-                "courtName", res.getCourt().getName(),
-                "startTime", res.getStartTime().toString(),
-                "endTime", res.getEndTime().toString()
-        ));
-    }
-
-    // Crear reserva
     @PostMapping
-    public ResponseEntity<Object> createReservation(@RequestBody ReservationRequest request) {
+    @PreAuthorize("hasAuthority('SCOPE_create:reservations')")
+    public ResponseEntity<?> createReservation(@RequestBody ReservationRequest request,
+                                               @AuthenticationPrincipal Jwt jwt) {
+        
         Optional<Court> courtOpt = courtService.findCourtById(request.getCourtId());
-        Optional<User> userOpt = userRepository.findById(request.getUserId());
+        User user = null;
 
-        if (courtOpt.isEmpty() || userOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "status", "error",
-                "message", "Usuario o cancha no encontrados."
-            ));
+        if (request.getUserId() != null) {
+            user = userRepository.findById(request.getUserId()).orElse(null);
+        } else if (jwt != null) {
+            String auth0Id = jwt.getSubject();
+            user = userRepository.findByAuth0Id(auth0Id)
+                    .or(() -> userRepository.findByEmail(jwt.getClaimAsString("email")))
+                    .orElse(null);
+        }
+
+        if (courtOpt.isEmpty() || user == null) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Usuario o cancha no encontrados."));
         }
 
         try {
             Reservation newReservation = reservationService.attemptReservation(
-                    courtOpt.get(), userOpt.get(),
+                    courtOpt.get(), user,
                     request.getDate(), request.getStartTime(), request.getEndTime()
             );
 
@@ -155,51 +154,21 @@ public class ReservationController {
 
             return ResponseEntity.created(location).body(toDTO(newReservation));
 
-        } catch (IllegalStateException | IllegalArgumentException e) {
-
-            // Buscar formato especial si el mensaje viene del service con horas
-            if (e.getMessage() != null && e.getMessage().contains("reserva activa desde")) {
-                String[] partes = e.getMessage().split("desde|hasta");
-                String start = partes.length > 1 ? partes[1].trim() : "";
-                String end = partes.length > 2 ? partes[2].replace(".", "").trim() : "";
-
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "status", "conflict",
-                    "message", e.getMessage(),
-                    "conflictStart", start,
-                    "conflictEnd", end
-                ));
-            }
-
-            // Errores normales
-            return ResponseEntity.badRequest().body(Map.of(
-                "status", "error",
-                "message", e.getMessage()
-            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
-    // Editar reserva completa
     @PutMapping("/{id}")
-    public ResponseEntity<Object> updateReservation(@PathVariable UUID id,
-                                                    @RequestBody ReservationRequest request) {
+    @PreAuthorize("hasAuthority('SCOPE_update:reservations')")
+    public ResponseEntity<?> updateReservation(@PathVariable UUID id, @RequestBody ReservationRequest request) {
         Optional<Reservation> existingOpt = reservationService.findReservationById(id);
         if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         Reservation reservation = existingOpt.get();
 
-        if (request.getCourtId() != null) {
-            Optional<Court> court = courtService.findCourtById(request.getCourtId());
-            if (court.isEmpty()) return ResponseEntity.badRequest().build();
-            reservation.setCourt(court.get());
-        }
-
-        if (request.getUserId() != null) {
-            Optional<User> user = userRepository.findById(request.getUserId());
-            if (user.isEmpty()) return ResponseEntity.badRequest().build();
-            reservation.setUser(user.get());
-        }
-
+        if (request.getCourtId() != null) courtService.findCourtById(request.getCourtId()).ifPresent(reservation::setCourt);
+        if (request.getUserId() != null) userRepository.findById(request.getUserId()).ifPresent(reservation::setUser);
         if (request.getDate() != null) reservation.setDate(request.getDate());
         if (request.getStartTime() != null) reservation.setStartTime(request.getStartTime());
         if (request.getEndTime() != null) reservation.setEndTime(request.getEndTime());
@@ -208,109 +177,70 @@ public class ReservationController {
         try {
             Reservation updated = reservationService.updateReservation(reservation);
             return ResponseEntity.ok(toDTO(updated));
-
-        } catch (IllegalStateException | IllegalArgumentException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Conflicto de horario")) {
-                String[] partes = e.getMessage().split("desde|hasta");
-                String start = partes.length > 1 ? partes[1].trim() : "";
-                String end = partes.length > 2 ? partes[2].replace(".", "").trim() : "";
-
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "status", "conflict",
-                    "message", e.getMessage(),
-                    "conflictStart", start,
-                    "conflictEnd", end
-                ));
-            }
-
-            return ResponseEntity.badRequest().body(Map.of(
-                "status", "error",
-                "message", e.getMessage()
-            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
-    // Actualizar solo el estado
+    @PatchMapping("/{id}/reactivate")
+    @PreAuthorize("hasAuthority('SCOPE_update:reservations')")
+    public ResponseEntity<?> reactivateReservation(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(toDTO(reservationService.reactivateReservation(id)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PatchMapping("/reactivate-bulk")
+    @PreAuthorize("hasAuthority('SCOPE_update:reservations')")
+    public ResponseEntity<?> reactivateReservationsBulk(@RequestBody List<UUID> reservationIds) {
+        return ResponseEntity.ok(reservationService.reactivateReservationsBulk(reservationIds));
+    }
+
     @PatchMapping("/{id}/status")
-    public ResponseEntity<ReservationDTO> updateReservationStatus(
-            @PathVariable UUID id, @RequestBody String newStatus) {
+    @PreAuthorize("hasAuthority('SCOPE_update:reservations')")
+    public ResponseEntity<?> updateReservationStatus(@PathVariable UUID id, @RequestBody String newStatus) {
         Optional<Reservation> existingOpt = reservationService.findReservationById(id);
         if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
 
         Reservation reservation = existingOpt.get();
-        String upperStatus = newStatus.trim().toUpperCase();
-
-        List<String> allowedStatuses = List.of("PENDING", "CONFIRMED", "CANCELLED", "FINISHED", "REACTIVATED");
-        if (!allowedStatuses.contains(upperStatus)) return ResponseEntity.badRequest().build();
-
-        if ("CANCELLED".equalsIgnoreCase(upperStatus)) {
-            reservationService.cancelReservation(reservation.getId());
-        } else {
-            reservation.setStatus(upperStatus);
-            reservationService.saveReservation(reservation);
-        }
+        reservation.setStatus(newStatus.trim().toUpperCase());
+        reservationService.saveReservation(reservation);
 
         return ResponseEntity.ok(toDTO(reservation));
     }
 
-    // Cambiar usuario asociado con notificación
-    @PatchMapping("/{id}/user")
-    public ResponseEntity<ReservationDTO> updateReservationUser(@PathVariable UUID id,
-                                                                @RequestBody ReservationUserUpdateDTO request) {
-        try {
-            // Usar el método del service que actualiza + notifica
-            Reservation updated = reservationService.updateReservationUser(id, 
-                    userRepository.findById(request.getUserId())
-                            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
-            );
-
-            return ResponseEntity.ok(toDTO(updated));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(null);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
-    }
-
-    // Obtener reservas por usuario
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAuthority('SCOPE_read:reservations')")
     public ResponseEntity<List<ReservationDTO>> getReservationsByUser(@PathVariable Long userId) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) return ResponseEntity.notFound().build();
 
-        List<ReservationDTO> reservations = reservationService.findReservationsByUser(userOpt.get())
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(reservations);
+        return ResponseEntity.ok(
+                reservationService.findReservationsByUser(userOpt.get())
+                        .stream().map(this::toDTO).collect(Collectors.toList())
+        );
     }
 
-    // Cancelar reserva
     @DeleteMapping("/{id}/cancel")
+    @PreAuthorize("hasAuthority('SCOPE_delete:reservations')")
     public ResponseEntity<Void> cancelReservation(@PathVariable UUID id) {
-        Optional<Reservation> existing = reservationService.findReservationById(id);
-        if (existing.isEmpty()) return ResponseEntity.notFound().build();
-
         reservationService.cancelReservation(id);
         return ResponseEntity.noContent().build();
     }
 
-    // Eliminar reserva
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_delete:reservations')")
     public ResponseEntity<Void> deleteReservation(@PathVariable UUID id) {
-        Optional<Reservation> existingOpt = reservationService.findReservationById(id);
-        if (existingOpt.isEmpty()) return ResponseEntity.notFound().build();
-
         try {
             reservationService.deleteReservationSafe(id);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            return ResponseEntity.status(500).build();
+            return ResponseEntity.internalServerError().build();
         }
     }
 
-    // ----------------- Helper -----------------
     private ReservationDTO toDTO(Reservation res) {
         ReservationDTO dto = new ReservationDTO(res);
         if (dto.getStartDateTime() != null) dto.setStartTime(dto.getStartDateTime().toLocalTime());

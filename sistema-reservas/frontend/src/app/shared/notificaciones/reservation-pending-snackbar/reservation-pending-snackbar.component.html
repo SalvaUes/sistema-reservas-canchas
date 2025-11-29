@@ -12,6 +12,11 @@
     <p>
       <strong>Código:</strong> {{ data.reservationCode }}<br />
       <strong>Cancha:</strong> {{ data.courtName }}<br />
+      
+      <ng-container *ngIf="formattedDate">
+        <strong>Fecha:</strong> {{ formattedDate | date:'dd/MM/yyyy' }}<br />
+      </ng-container>
+
       <strong>Hora:</strong> {{ formattedStartTime }} - {{ formattedEndTime }}
     </p>
   </div>

@@ -15,7 +15,7 @@ import com.reservas.backend.model.Reservation;
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByReservationId(UUID reservationId);
-    
+    boolean existsByReservation(Reservation reservation);
     @Modifying
     @Query("DELETE FROM Payment p WHERE p.reservation = :reservation")
     void deleteByReservation(@Param("reservation") Reservation reservation);

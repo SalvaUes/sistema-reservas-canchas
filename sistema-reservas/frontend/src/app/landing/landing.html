@@ -1,0 +1,43 @@
+<div class="landing-container">
+  <div class="hero-section">
+    <h1>Bienvenido a ReservaTuCancha</h1>
+    <p>La forma más fácil de gestionar tus espacios deportivos.</p>
+    
+    <div class="actions-container">
+      
+      <!-- Estado: NO Autenticado -->
+      <ng-container *ngIf="(auth.isAuthenticated$ | async) === false">
+        
+        <div class="card card-login" (click)="login()" tabindex="0">
+          <div class="card-icon">
+            <i class="fas fa-sign-in-alt"></i>
+          </div>
+          <div class="card-content">
+            <h3>Iniciar Sesión</h3>
+            <p>Accede a tu cuenta para reservar o administrar.</p>
+          </div>
+        </div>
+
+        <div class="card card-register" (click)="register()" tabindex="0">
+          <div class="card-icon">
+            <i class="fas fa-user-plus"></i>
+          </div>
+          <div class="card-content">
+            <h3>Crear Cuenta</h3>
+            <p>¿Eres nuevo? Regístrate gratis y empieza a jugar.</p>
+          </div>
+        </div>
+
+      </ng-container>
+      
+      <!-- Estado: Cargando / Autenticado -->
+      <ng-container *ngIf="(auth.isAuthenticated$ | async)">
+        <div class="loading-card">
+          <div class="spinner"></div>
+          <p>Validando credenciales e ingresando al sistema...</p>
+        </div>
+      </ng-container>
+
+    </div>
+  </div>
+</div>

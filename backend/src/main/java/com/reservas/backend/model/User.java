@@ -5,26 +5,31 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "users") // "user" es palabra reservada en SQL
+@Table(name = "users")
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(unique = true, name = "auth0_id")
+    private String auth0Id;
+
+    // 💡 NUEVO CAMPO USERNAME
+    @Column(unique = true)
+    private String username;
 
     @Column(nullable = false)
     private String firstName;
@@ -32,42 +37,35 @@ public class User {
     @Column(nullable = false)
     private String lastName;
 
-    @Column(unique = true, nullable = false)
-    private String email; // Usado como username para login
-
     @Column(nullable = false)
-    private String password; // Hasheado con BCrypt
+    private String email; 
+
+    private String role; 
+
+    @JsonIgnore 
+    private String password;
 
     private String phoneNumber;
-    private LocalDate dateOfBirth; // Opcional
+    private LocalDate dateOfBirth;
 
     @Column(nullable = false)
-    private String status = "ACTIVE"; // "ACTIVE" o "INACTIVE"
+    private String status = "ACTIVE";
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Reservation> reservations = new HashSet<>();
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-        name = "user_roles",
-        joinColumns = @JoinColumn(name = "user_id"), 
-        inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    private Set<Role> roles = new HashSet<>();
-
     public User() {}
 
-    public User(String firstName, String lastName, String email, String password, String phoneNumber) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.email = email;
-        this.password = password;
-        this.phoneNumber = phoneNumber;
-    }
-
-    // 🔹 Getters y Setters
+    // --- Getters y Setters ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public String getAuth0Id() { return auth0Id; }
+    public void setAuth0Id(String auth0Id) { this.auth0Id = auth0Id; }
+
+    // 💡 Getters/Setters para username
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }
@@ -77,6 +75,9 @@ public class User {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
@@ -92,46 +93,18 @@ public class User {
 
     public Set<Reservation> getReservations() { return reservations; }
     public void setReservations(Set<Reservation> reservations) { this.reservations = reservations; }
-
-    public Set<Role> getRoles() { return roles; }
-    public void setRoles(Set<Role> roles) { this.roles = roles; }
-
-    // 🔹 Métodos para agregar/eliminar roles
-    public void addRole(Role role) {
-        this.roles.add(role);
-    }
-
-    public void removeRole(Role role) {
-        this.roles.remove(role);
-    }
-
-    // 🔹 Ajuste del método setRole (para usar un solo rol)
-    public void setRole(Role role) {
-        this.roles.clear();
-        this.roles.add(role);
-    }
-
+    
+    // HashCode y Equals
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
-        return Objects.equals(email, user.email);
+        return Objects.equals(auth0Id, user.auth0Id) || Objects.equals(email, user.email);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(email);
-    }
-
-    @Override
-    public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", email='" + email + '\'' +
-                ", roles=" + roles +
-                '}';
+        return Objects.hash(auth0Id, email);
     }
 }

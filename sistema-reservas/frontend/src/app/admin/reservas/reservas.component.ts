@@ -1,42 +1,44 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core'; // 1. Imports
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { ReactivateErrorDialogComponent } from '../../shared/reactivate-error-dialog/reactivate-error-dialog.component';
-
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { AuthService } from '../../services/auth.service';
 import { ConfirmDialogComponent } from '../usuarios/confirm-dialog.component';
 import { InvoiceDialogComponent, InvoiceDialogData } from '../../shared/notificaciones/invoice/invoice-dialog.component';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { interval, Subscription, forkJoin } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
-  interface UserDTO { id: number; firstName: string; lastName: string; email: string; }
-  interface CourtDTO { id: string; name: string; sportType: string; pricePerHour: number; }
-  interface ReservationDTO {
-    id: string;
-    reservationId?: string;
-    code?: string;
-    userId: number;
-    userFullName?: string;
-    email: string;  
-    courtId: string;
-    courtName?: string;
-    date: string;           // yyyy-mm-dd
-    startTime: string;      // could be "HH:mm" from backend or "h:mm AM/PM" when shown
-    endTime: string;
-    status: string;
-    previousStatus?: string;
-    selected?: boolean;
-  }
+interface UserDTO { id: number; firstName: string; lastName: string; email: string; }
+interface CourtDTO { id: string; name: string; sportType: string; pricePerHour: number; }
 
-  interface ReactivateResult {
-    code: string;
-    message: string;
-    status: 'success' | 'failed';
-  }
+interface ReservationDTO {
+  id: string;
+  reservationId?: string;
+  code?: string;
+  userId: number;
+  userFullName?: string;
+  email: string;  
+  courtId: string;
+  courtName?: string;
+  date: string;           
+  startTime: string;      
+  endTime: string;
+  status: string;
+  previousStatus?: string;
+  selected?: boolean;
+  createdAt?: string; 
+}
+
+interface ReactivateResult {
+  code: string;
+  message: string;
+  status: 'success' | 'failed';
+}
 
 type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'FINISHED' | 'CANCELLED' | 'REACTIVATED' | '';
 
@@ -46,6 +48,7 @@ type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'FINISHED' | 'CANCELLED' | 'R
   imports: [CommonModule, FormsModule, RouterModule, MatTooltipModule],
   templateUrl: './reservas.html',
   styleUrls: ['./reservas.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush // 2. Estrategia OnPush
 })
 export class ReservasComponent implements OnInit, OnDestroy {
 
@@ -59,21 +62,20 @@ export class ReservasComponent implements OnInit, OnDestroy {
   // Filters / UI
   searchTerm = '';
   filterStatus: ReservationStatus = '';
+  sortColumn: 'date' | 'status' = 'date'; 
   sortDirection: 'asc' | 'desc' = 'asc';
   showForm = false;
-  editMode = false;
   editingReservationId: string | null = null;
 
   // Form fields
-  userId: number | null = null;
+  currentUserFullName: string = '';
   courtId = '';
   reservationDate = '';
   status: ReservationStatus | string = 'PENDING';
 
-  //Entradas de tiempo (mostradas en AM/PM) y valores a enviar (24 h "HH:mm")
-  startTimeDisplay = ''; // e.g. "07:00 AM"
+  startTimeDisplay = ''; 
   endTimeDisplay = '';
-  startTime = ''; // "HH:mm" for backend
+  startTime = ''; 
   endTime = '';
 
   // Pagination
@@ -81,76 +83,97 @@ export class ReservasComponent implements OnInit, OnDestroy {
   itemsPerPage = 10;
   totalPages = 1;
 
-  // Helper arrays
-  hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-  minutes = ['00', '10', '20', '30', '40', '50'];
-
-  // Selección: un solo mapa para evitar matrices duplicadas para diferentes acciones
-  // El valor es 'cancel' | 'reactivate'
+  // Selección
   selectedByAction = new Map<string, 'cancel' | 'reactivate'>();
   selectAllGlobal = false;
 
-  get hasCancelSelected(): boolean {
-    // devuelve true si hay al menos un id marcado para 'cancel'
-    return Array.from(this.selectedByAction.values()).includes('cancel');
-  }
-
-  get hasReactivateSelected(): boolean {
-    // devuelve true si hay al menos un id marcado para 'reactivate'
-    return Array.from(this.selectedByAction.values()).includes('reactivate');
-  }
-
-  get selectedCount(): number {
-    return this.selectedByAction.size;
-  }
+  get hasCancelSelected(): boolean { return Array.from(this.selectedByAction.values()).includes('cancel'); }
+  get hasReactivateSelected(): boolean { return Array.from(this.selectedByAction.values()).includes('reactivate'); }
+  get selectedCount(): number { return this.selectedByAction.size; }
 
   // UI state
-  isSidePanelClosed = true;
   userEmail = '';
   userRole = '';
 
   // Internal
-  private timerSub: Subscription | null = null;
-  private readonly baseUrl = 'http://localhost:8080/api';
+  private uiTimerSub: Subscription | null = null;   
+  private dataPollingSub: Subscription | null = null; 
+  
+  private readonly baseUrl = environment.apiUrl;
   private reactivateDialogRef: MatDialogRef<ReactivateErrorDialogComponent> | null = null;
 
   constructor(
     private http: HttpClient,
     private auth: AuthService,
     private notify: NotificationService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef // 3. Inyectar ChangeDetectorRef
   ) {
     this.userEmail = this.auth.getUserEmail() || 'usuario@correo.com';
     this.userRole = this.auth.getUserRole() || 'ROL_NO_DEFINIDO';
   }
 
   ngOnInit() {
-    // Primero cargamos los usuarios y las canchas para poder asignar los nombres cuando lleguen las reservas.
     forkJoin({
       users: this.http.get<UserDTO[]>(`${this.baseUrl}/users`),
       courts: this.http.get<CourtDTO[]>(`${this.baseUrl}/courts`)
     }).subscribe({
-      //Utilice funciones flecha para preservar `this` y satisfacer las sobrecargas de TypeScript.
       next: ({ users, courts }) => {
         this.users = users;
         this.courts = courts;
-        this.loadReservations();
+        this.loadReservations(); 
+        this.cdr.markForCheck(); // Actualizar UI inicial
       },
       error: err => {
         console.error(err);
         this.showMessage('Error al cargar usuarios o canchas.', 'error');
+        this.cdr.markForCheck();
       }
     });
 
-    // Mantener la interfaz de usuario actualizada (re-renderizar la tabla) cada segundo
-    this.timerSub = interval(1000).subscribe(() => {
-      // Pequeña actualización inmutable para provocar la detección de cambios
-      this.reservations = this.reservations.slice();
+    this.dataPollingSub = interval(5000).subscribe(() => {
+        this.loadReservations(true); 
+    });
+
+    // Timer para actualizar contadores visuales (3m 00s)
+    this.uiTimerSub = interval(1000).subscribe(() => { 
+        this.cdr.markForCheck(); // Forzar actualización cada segundo para el reloj
     });
   }
 
   ngOnDestroy() {
-    this.timerSub?.unsubscribe();
+    this.uiTimerSub?.unsubscribe();
+    this.dataPollingSub?.unsubscribe();
+  }
+
+  // ---------------- Lógica de Tiempo Real ----------------
+  getRemainingTime(res: ReservationDTO): number {
+      if (!res.createdAt) return 0;
+      if (res.status !== 'PENDING' && res.status !== 'REACTIVATED') return 0;
+
+      const created = new Date(res.createdAt).getTime();
+      const now = Date.now();
+      const expiresAt = created + (3 * 60 * 1000); 
+      const remaining = expiresAt - now;
+      return remaining > 0 ? remaining : 0;
+  }
+
+  formatStatusWithTimer(res: ReservationDTO): string {
+      const status = res.status;
+      if (status === 'PENDING' || status === 'REACTIVATED') {
+          const ms = this.getRemainingTime(res);
+          if (ms <= 0) return 'Expirado'; 
+          const min = Math.floor(ms / 60000);
+          const sec = Math.floor((ms % 60000) / 1000);
+          const label = status === 'PENDING' ? 'Pendiente' : 'Reactivada';
+          return `${label} (${min}m ${sec}s)`;
+      }
+      switch (status) {
+          case 'CONFIRMED': return 'Confirmada';
+          case 'CANCELLED': return 'Cancelada';
+          case 'FINISHED': return 'Finalizada';
+          default: return status;
+      }
   }
 
   // ---------------- Servicios públicos ----------------
@@ -163,16 +186,10 @@ export class ReservasComponent implements OnInit, OnDestroy {
     location.href = '/login';
   }
 
-  toggleSidePanel() { this.isSidePanelClosed = !this.isSidePanelClosed; }
-  hoverPanel(isHovering: boolean) { if (this.isSidePanelClosed) this.isSidePanelClosed = !isHovering ? true : false; }
-
+  // ---------------- Helpers Hora ----------------
   private parse12hTo24(input: string | null | undefined): string {
     if (!input) return '';
-
-    // Limpiar y estandarizar el texto
     const s = input.toString().trim().replace(/\./g, '').toUpperCase();
-
-    // Si ya está en formato 24h "HH:mm", validarlo y devolverlo
     const regex24h = /^(\d{1,2}):(\d{2})$/;
     const match24 = s.match(regex24h);
     if (match24) {
@@ -182,22 +199,16 @@ export class ReservasComponent implements OnInit, OnDestroy {
         return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
       }
     }
-
-    // Formato 12h: "h:mm AM/PM" o "hAM/PM"
     const regex12h = /^(\d{1,2}):?(\d{2})?\s*(AM|PM)$/i;
     const match12 = s.match(regex12h);
     if (!match12) return '';
-
     let hh = parseInt(match12[1], 10);
     const mm = match12[2] ? parseInt(match12[2], 10) : 0;
     const meridian = match12[3].toUpperCase();
-
     if (meridian === 'PM' && hh < 12) hh += 12;
     if (meridian === 'AM' && hh === 12) hh = 0;
-
     return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
   }
-
 
   private format24To12(hhmm: string): string {
     if (!hhmm) return '';
@@ -212,7 +223,6 @@ export class ReservasComponent implements OnInit, OnDestroy {
   }
 
   private to24ForComparison(displayOrBackendTime: string): string {
-    // La entrada puede ser "h:mm AM/PM" o "HH:mm" (backend).
     const maybe24 = this.parse12hTo24(displayOrBackendTime);
     return maybe24 || displayOrBackendTime;
   }
@@ -220,55 +230,61 @@ export class ReservasComponent implements OnInit, OnDestroy {
   private endpoint(path: string) { return `${this.baseUrl}${path}`; }
 
   // ---------------- Loading ----------------
-  loadReservations() {
+  loadReservations(isPolling = false) {
     this.http.get<ReservationDTO[]>(this.endpoint('/reservations')).subscribe({
       next: res => {
-        // Actualizar estados localmente y nombres de mapas, unificar la hora mostrada a AM/PM
         this.reservations = res.map(r => {
+          const existing = this.reservations.find(old => old.id === r.id);
           const updated = this.updateReservationStatus(r);
           const user = this.users.find(u => u.id === updated.userId);
           updated.userFullName = user ? `${user.firstName} ${user.lastName}` : updated.userFullName || '';
           const court = this.courts.find(c => c.id === updated.courtId);
           updated.courtName = court ? court.name : updated.courtName || '';
-          updated.selected = false;
-
-          // Es probable que el servidor proporcione la hora en formato HH:mm; asegúrese de que se muestre en AM/PM.
+          
+          updated.selected = existing ? existing.selected : false; 
           updated.startTime = this.format24To12(this.to24ForComparison(updated.startTime));
           updated.endTime = this.format24To12(this.to24ForComparison(updated.endTime));
           return updated;
         });
-        this.filterReservations();
+        
+        if (!isPolling) {
+              this.filterReservations();
+        } else {
+              this.applyFilterOnly(); 
+        }
+        this.cdr.markForCheck(); // 4. Notificar cambios tras polling o carga
       },
-      error: err => { console.error(err); this.showMessage('Error al cargar las reservaciones.'); }
+      error: err => { 
+          if(!isPolling) { 
+              console.error(err); 
+              this.showMessage('Error al cargar las reservaciones.'); 
+          }
+          this.cdr.markForCheck();
+      }
     });
   }
 
   private updateReservationStatus(res: ReservationDTO): ReservationDTO {
-    // Normalizar y, si es necesario, actualizar el estado FINALIZADO si el final es anterior al actual.
     try {
       const now = new Date();
       const endStr = this.to24ForComparison(res.endTime);
       const end = new Date(`${res.date}T${endStr}`);
       if ((res.status === 'PENDING' || res.status === 'PENDIENTE') && end < now) {
-        res.status = 'FINISHED';
-        // Disparar y olvidarse del backend
-        this.http.put(this.endpoint(`/reservations/${res.id}`), {
-          userId: res.userId,
-          courtId: res.courtId,
-          date: res.date,
-          startTime: this.to24ForComparison(res.startTime),
-          endTime: this.to24ForComparison(res.endTime),
-          status: res.status
-        }).subscribe({ error: e => console.error('Error al sincronizar estado finalizado', e) });
+        res.status = 'FINISHED'; 
       }
-    } catch (e) {
-      console.warn('updateReservationStatus parsing issue', e);
-    }
+    } catch (e) { }
     return res;
   }
 
   // ---------------- Filtros / Ordenación / Paginación ----------------
   filterReservations() {
+    this.applyFilterOnly();
+    this.currentPage = 1; 
+    this.setupPagination();
+    this.cdr.markForCheck();
+  }
+
+  applyFilterOnly() {
     let results = this.reservations.slice();
     const term = this.searchTerm.trim().toLowerCase();
     if (term) {
@@ -283,16 +299,45 @@ export class ReservasComponent implements OnInit, OnDestroy {
       results = results.filter(r => r.status === this.filterStatus);
     }
     results.sort((a, b) => {
-      const aTime = new Date(a.date).getTime();
-      const bTime = new Date(b.date).getTime();
-      return this.sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+      let comparison = 0;
+
+      if (this.sortColumn === 'date') {
+        const aTime = new Date(a.date).getTime();
+        const bTime = new Date(b.date).getTime();
+        comparison = aTime - bTime;
+      } else if (this.sortColumn === 'status') {
+        const statusA = (a.status || '').toLowerCase();
+        const statusB = (b.status || '').toLowerCase();
+        if (statusA < statusB) comparison = -1;
+        if (statusA > statusB) comparison = 1;
+      }
+
+      return this.sortDirection === 'asc' ? comparison : -comparison;
     });
+
     this.filteredReservations = results;
-    this.currentPage = 1;
     this.setupPagination();
   }
 
-  toggleSortByDate() { this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'; this.filterReservations(); }
+  toggleSortByDate() {
+    if (this.sortColumn === 'date') {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = 'date';
+      this.sortDirection = 'asc';
+    }
+    this.filterReservations(); 
+  }
+
+  toggleSortByStatus() {
+    if (this.sortColumn === 'status') {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = 'status';
+      this.sortDirection = 'asc';
+    }
+    this.filterReservations();
+  }
 
   setupPagination() {
     this.totalPages = Math.max(1, Math.ceil(this.filteredReservations.length / this.itemsPerPage));
@@ -300,29 +345,27 @@ export class ReservasComponent implements OnInit, OnDestroy {
     if (this.currentPage < 1) this.currentPage = 1;
     const start = (this.currentPage - 1) * this.itemsPerPage;
     const end = start + this.itemsPerPage;
-    // Copia superficial para evitar mutaciones accidentales
     this.pagedReservations = this.filteredReservations.slice(start, end).map(r => ({ ...r }));
-    if (this.pagedReservations.length === 0 && this.currentPage > 1) {
-      this.currentPage--;
-      this.setupPagination();
-    }
+    this.cdr.markForCheck();
   }
 
-  nextPage() { if (this.currentPage < this.totalPages) { this.currentPage++; this.setupPagination(); } }
-  previousPage() { if (this.currentPage > 1) { this.currentPage--; this.setupPagination(); } }
-
-  translateReservationStatus(status: string): string {
-    switch (status) {
-      case 'PENDING': return 'Pendiente';
-      case 'CONFIRMED': return 'Confirmada';
-      case 'FINISHED': return 'Finalizada';
-      case 'CANCELLED': return 'Cancelada';
-      case 'REACTIVATED': return 'Reactivada';
-      default: return status;
-    }
+  nextPage() { 
+      if (this.currentPage < this.totalPages) { 
+          this.currentPage++; 
+          this.setupPagination(); 
+          this.cdr.markForCheck();
+      } 
+  }
+  
+  previousPage() { 
+      if (this.currentPage > 1) { 
+          this.currentPage--; 
+          this.setupPagination(); 
+          this.cdr.markForCheck();
+      } 
   }
 
-  // ---------------- Funciones auxiliares de tiempo para el enlace de la interfaz de usuario ----------------
+  // ---------------- UI Helpers ----------------
   onStartTimeChange(value: string) {
     this.startTime = value;
     if (this.endTime && this.startTime >= this.endTime) {
@@ -339,13 +382,12 @@ export class ReservasComponent implements OnInit, OnDestroy {
     }
   }
 
-  
-  // ---------------- validacion ----------------
+  // ---------------- Validación ----------------
   private validateReservation(isEditing = false): boolean {
     const start24 = this.parse12hTo24(this.startTimeDisplay);
     const end24 = this.parse12hTo24(this.endTimeDisplay);
 
-    if (!this.userId || !this.courtId || !this.reservationDate || !start24 || !end24) {
+    if (!this.courtId || !this.reservationDate || !start24 || !end24) {
       this.showMessage('Complete todos los campos obligatorios.', 'warning');
       return false;
     }
@@ -362,19 +404,13 @@ export class ReservasComponent implements OnInit, OnDestroy {
       return false; 
     }
 
-    const diffMinutes = (start.getTime() - now.getTime()) / 60000;
-    if (diffMinutes < 10) { 
-      this.showMessage('Debe crear o editar la reservación al menos 10 minutos antes del inicio.', 'warning'); 
-      return false; 
-    }
-
     const durationMinutes = (end.getTime() - start.getTime()) / 60000;
     if (durationMinutes < 60) { 
       this.showMessage('La reservación debe durar al menos 1 hora.', 'warning'); 
       return false; 
     }
 
-    // check overlap with existing reservations (skip cancelled)
+    // Check overlap
     let conflictStartStr = '';
     let conflictEndStr = '';
     let conflictCode = '';
@@ -397,7 +433,7 @@ export class ReservasComponent implements OnInit, OnDestroy {
 
     if (overlapping) {
       this.showMessage(
-        `Ya existe la reserva [${conflictCode}] de ${conflictStartStr} a ${conflictEndStr} en esta cancha que se solapa con el horario seleccionado.`,
+        `Ya existe la reserva [${conflictCode}] de ${conflictStartStr} a ${conflictEndStr} en esta cancha.`,
         'warning'
       );
       return false;
@@ -409,186 +445,104 @@ export class ReservasComponent implements OnInit, OnDestroy {
   canReactivate(res: ReservationDTO): boolean {
     if (!res) return false;
     if (res.status !== 'CANCELLED') return false;
-
-    // El usuario no puede tener otra reserva activa (PENDING | REACTIVATED)
     const userHasActive = this.reservations.some(r =>
       r.userId === res.userId &&
       r.id !== res.id &&
       (r.status === 'PENDING' || r.status === 'REACTIVATED')
     );
     if (userHasActive) return false;
-
-    // Comprobar solapamiento en la misma cancha y fecha (solo contra PENDING/REACTIVATED)
     const start24 = this.to24ForComparison(res.startTime);
     const end24 = this.to24ForComparison(res.endTime);
-
     const overlapping = this.reservations.some(r => {
       if (r.id === res.id) return false;
       if (r.status !== 'PENDING' && r.status !== 'REACTIVATED') return false;
       if (r.courtId !== res.courtId || r.date !== res.date) return false;
-
       const rStart24 = this.to24ForComparison(r.startTime);
       const rEnd24 = this.to24ForComparison(r.endTime);
-
       return !(end24 <= rStart24 || start24 >= rEnd24);
     });
-
     return !overlapping;
   }
 
-  canDeleteCancelled(reservation: ReservationDTO): boolean {
-    if (!reservation) return false;
-    if (reservation.status !== 'CANCELLED') return false;
-
-    const start24 = this.to24ForComparison(reservation.startTime);
-    const end24 = this.to24ForComparison(reservation.endTime);
-
-    // Verificamos si existe alguna reserva activa (CONFIRMED o FINISHED) en el mismo horario
-    const hasActiveConflict = this.reservations.some(r =>
-      r.id !== reservation.id &&
-      r.courtName === reservation.courtName &&
-      r.date === reservation.date &&
-      this.to24ForComparison(r.startTime) === start24 &&
-      this.to24ForComparison(r.endTime) === end24 &&
-      (r.status === 'CONFIRMED' || r.status === 'FINISHED')
-    );
-
-    // Se puede eliminar solo si NO hay conflictos
-    return !hasActiveConflict;
-  }
-
-  // ---------------- Form open / submit ----------------
-  openForm(editMode = false, res?: ReservationDTO) {
-    this.showForm = true;
-    this.editMode = editMode;
-    if (editMode && res) {
-      this.editingReservationId = res.id;
-      this.userId = res.userId;
-      this.courtId = res.courtId;
-      this.reservationDate = res.date;
-      this.startTimeDisplay = this.startTime;
-      this.endTimeDisplay = this.endTime;
-      this.status = res.status;
-    } else {
-      this.editingReservationId = null;
-      this.userId = this.users.length > 0 ? this.users[0].id : null;
-      this.courtId = this.courts.length > 0 ? this.courts[0].id : '';
-      this.reservationDate = '';
-      this.startTime = '';
-      this.endTime = '';
-      this.startTimeDisplay = '';
-      this.endTimeDisplay = '';
-      this.status = 'PENDING';
+  canDeleteReservation(res: ReservationDTO): boolean {
+    if (!res) return false;
+    if (res.status === 'FINISHED') {
+      return true; 
     }
+    if (res.status === 'CANCELLED') {
+      const start24 = this.to24ForComparison(res.startTime);
+      const end24 = this.to24ForComparison(res.endTime);
+      const hasActiveConflict = this.reservations.some(r =>
+        r.id !== res.id &&
+        r.courtName === res.courtName &&
+        r.date === res.date &&
+        this.to24ForComparison(r.startTime) === start24 &&
+        this.to24ForComparison(r.endTime) === end24 &&
+        (r.status === 'CONFIRMED' || r.status === 'FINISHED')
+      );
+      return !hasActiveConflict;
+    }
+
+    return false;
   }
 
-  cancelForm() { this.showForm = false; this.editMode = false; this.editingReservationId = null; }
+  // ---------------- FORMULARIO DE EDICIÓN ----------------
+  openForm(res: ReservationDTO) {
+    this.showForm = true;
+    this.editingReservationId = res.id;
+    this.currentUserFullName = res.userFullName || res.email; 
+    this.courtId = res.courtId;
+    this.reservationDate = res.date;
+    this.startTimeDisplay = this.to24ForComparison(res.startTime);
+    this.endTimeDisplay = this.to24ForComparison(res.endTime);
+    this.startTime = this.startTimeDisplay;
+    this.endTime = this.endTimeDisplay;
+    this.status = res.status;
+    this.cdr.markForCheck();
+  }
 
-  private buildPayload(): any {
-    return {
-      userId: this.userId,
-      courtId: this.courtId,
-      date: this.reservationDate,
-      startTime: this.startTime,
-      endTime: this.endTime,
-      status: this.status
-    };
+  cancelForm() { 
+    this.showForm = false; 
+    this.editingReservationId = null; 
+    this.currentUserFullName = '';
+    this.cdr.markForCheck();
   }
 
   submitForm() {
-    // Crear nueva reserva (ADMIN)
-    if (!this.editMode) {
-      if (!this.validateReservation(false)) return;
-
-      const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-        width: '350px',
-        data: { title: 'Confirmar creación', message: `¿Desea crear la nueva reservación?` }
-      });
-
-      dialogRef.afterClosed().subscribe(result => {
-        if (!result) return;
-
-        const payload = this.buildPayload();
-
-        // Validar solapamiento antes de crear
-        const overlap = this.reservations.some(r =>
-          r.courtId === payload.courtId &&
-          r.date === payload.date &&
-          ['PENDING', 'ACTIVE'].includes(r.status) &&
-          this.isOverlap(payload.startTime, payload.endTime, r.startTime, r.endTime)
-        );
-
-        if (overlap) {
-          this.showMessage('Ya existe una reserva pendiente o activa en este horario.', 'warning');
-          return;
-        }
-
-        this.http.post<ReservationDTO>(this.endpoint('/reservations'), payload).subscribe({
-          next: created => {
-            const user = this.users.find(u => u.id === created.userId);
-            created.userFullName = user ? `${user.firstName} ${user.lastName}` : '';
-            const court = this.courts.find(c => c.id === created.courtId);
-            created.courtName = court ? court.name : '';
-            created.selected = false;
-
-            // Mantener formato 24h directamente
-            this.reservations.push(created);
-            this.filterReservations();
-            this.cancelForm();
-            this.showMessage(
-              `Reservación creada para "${created.userFullName}" en cancha "${created.courtName}".`,
-              'success'
-            );
-          },
-          error: err => {
-            console.error(err);
-            const msg = err?.error?.message || `Error al crear la reservación: ${err?.message ?? ''}`;
-            this.showMessage(msg, 'error');
-          }
-        });
-      });
-      return;
-    }
-
-    // Editar reserva existente (ADMIN)
     if (!this.editingReservationId) return;
 
     const original = this.reservations.find(r => r.id === this.editingReservationId);
     if (!original) return;
 
-    // No permitir editar reservas finalizadas
     if (original.status === 'FINISHED') {
       this.showMessage('No se puede editar una reserva finalizada.', 'warning');
       return;
     }
 
-    // Ya estamos usando HH:mm → no se necesita convertir
     if (!this.validateReservation(true)) return;
 
     const payload: any = {};
-    if (this.userId !== null && this.userId !== original.userId) payload.userId = this.userId;
     if (this.courtId && this.courtId !== original.courtId) payload.courtId = this.courtId;
     if (this.reservationDate && this.reservationDate !== original.date) payload.date = this.reservationDate;
     if (this.status && this.status !== original.status) payload.status = this.status;
-    if (this.startTime && this.startTime !== original.startTime) payload.startTime = this.startTime;
-    if (this.endTime && this.endTime !== original.endTime) payload.endTime = this.endTime;
+    if (this.startTime && this.startTime !== this.to24ForComparison(original.startTime)) payload.startTime = this.startTime;
+    if (this.endTime && this.endTime !== this.to24ForComparison(original.endTime)) payload.endTime = this.endTime;
 
     if (Object.keys(payload).length === 0) {
       this.showMessage('No se detectaron cambios en la reservación.', 'warning');
       return;
     }
 
-    // Validar solapamiento antes de editar
     const overlap = this.reservations.some(r =>
       r.id !== this.editingReservationId &&
       r.courtId === (payload.courtId ?? original.courtId) &&
       r.date === (payload.date ?? original.date) &&
       ['PENDING', 'ACTIVE'].includes(r.status) &&
       this.isOverlap(
-        payload.startTime ?? original.startTime,
-        payload.endTime ?? original.endTime,
-        r.startTime,
-        r.endTime
+        payload.startTime ?? this.to24ForComparison(original.startTime),
+        payload.endTime ?? this.to24ForComparison(original.endTime),
+        this.to24ForComparison(r.startTime),
+        this.to24ForComparison(r.endTime)
       )
     );
 
@@ -597,7 +551,6 @@ export class ReservasComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Confirmar actualización
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '350px',
       data: { title: 'Confirmar actualización', message: `¿Desea guardar los cambios de esta reservación?` }
@@ -620,17 +573,18 @@ export class ReservasComponent implements OnInit, OnDestroy {
           this.filterReservations();
           this.cancelForm();
           this.showMessage(`Reservación actualizada correctamente.`, 'success');
+          this.cdr.markForCheck();
         },
         error: err => {
           console.error(err);
           const msg = err?.error?.message || `Error al actualizar la reservación: ${err?.message ?? ''}`;
           this.showMessage(msg, 'error');
+          this.cdr.markForCheck();
         }
       });
     });
   }
 
-  /** Verifica si dos intervalos de tiempo se solapan (HH:mm) */
   private isOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
     return startA < endB && endA > startB;
   }
@@ -649,9 +603,14 @@ export class ReservasComponent implements OnInit, OnDestroy {
           this.selectedByAction.delete(res.id);
           this.filterReservations();
           this.showMessage(`Reservación "${res.code}" eliminada.`, 'success');
-          this.filterReservations();
+          this.cdr.markForCheck();
         },
-        error: err => { console.error('Error al eliminar:', err); this.showMessage('Error al eliminar la reservación.', 'error'); }
+        error: err => { 
+            console.error('Error al eliminar:', err); 
+            const msg = err.error?.message || 'Error al eliminar la reservación.';
+            this.showMessage(msg, 'error'); 
+            this.cdr.markForCheck();
+        }
       });
     });
   }
@@ -673,64 +632,52 @@ export class ReservasComponent implements OnInit, OnDestroy {
             this.filterReservations();
           }
           this.showMessage(`Reservación "${res.code}" cancelada.`, 'success');
+          this.cdr.markForCheck();
         },
-        error: err => { console.error('Error al cancelar:', err); this.showMessage('Error al cancelar la reservación.', 'error'); }
+        error: err => { 
+            console.error('Error al cancelar:', err); 
+            this.showMessage('Error al cancelar la reservación.', 'error'); 
+            this.cdr.markForCheck();
+        }
       });
     });
   }
 
-  // Reactivación individual (segura)
   reactivateReservation(res: ReservationDTO) {
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '350px',
-      data: { 
-        title: 'Confirmar reactivación', 
-        message: `¿Desea reactivar la reservación con código "${res.code}"?` 
-      }
+      data: { title: 'Confirmar reactivación', message: `¿Desea reactivar la reservación con código "${res.code}"?` }
     });
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
 
-      this.http.patch<ReservationDTO>(
-        this.endpoint(`/reservations/${res.id}/reactivate`),
-        {}
-      ).subscribe({
+      this.http.patch<ReservationDTO>(this.endpoint(`/reservations/${res.id}/reactivate`), {}).subscribe({
         next: updated => {
-          // Buscar índice en la tabla
           const index = this.reservations.findIndex(r => r.id === updated.id);
           if (index !== -1) {
-            // Actualizar objeto directamente
             this.reservations[index] = {
               ...updated,
               selected: false,
               startTime: updated.startTime ? this.format24To12(this.to24ForComparison(updated.startTime)) : '',
               endTime: updated.endTime ? this.format24To12(this.to24ForComparison(updated.endTime)) : ''
             };
-
-            // Eliminar de selección
             this.selectedByAction.delete(res.id);
-
-            // Refrescar la tabla
             this.filterReservations();
           }
-
           this.showMessage(`Reservación "${res.code}" reactivada con éxito.`, 'success');
+          this.cdr.markForCheck();
         },
         error: err => {
           console.error('Error al reactivar:', err);
-          const backendMsg =
-            err?.error?.message || 
-            err?.error?.error || 
-            err?.message || 
-            `No se pudo reactivar la reserva "${res.code}".`;
+          const backendMsg = err?.error?.message || err?.error?.error || err?.message || `No se pudo reactivar la reserva "${res.code}".`;
           this.showMessage(backendMsg, 'error');
+          this.cdr.markForCheck();
         }
       });
     });
   }
 
-  // ---------------- Factura ----------------
   canShowInvoice(res: ReservationDTO): boolean {
     return (res.status === 'CONFIRMED' || res.status === 'Confirmada') && !!res.id;
   }
@@ -743,12 +690,17 @@ export class ReservasComponent implements OnInit, OnDestroy {
         } else {
           this.showMessage('No existe factura para esta reserva.', 'warning');
         }
+        this.cdr.markForCheck();
       },
-      error: err => { console.error('Error al cargar factura:', err); this.showMessage('Error al consultar la factura.', 'error'); }
+      error: err => { 
+          console.error('Error al cargar factura:', err); 
+          this.showMessage('Error al consultar la factura.', 'error');
+          this.cdr.markForCheck();
+      }
     });
   }
 
-  // ---------------- Selección (mapa único) ----------------
+  // ---------------- Selección ----------------
   onReservationSelect(res: ReservationDTO, event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
     res.selected = checked;
@@ -758,14 +710,30 @@ export class ReservasComponent implements OnInit, OnDestroy {
     } else {
       this.selectedByAction.delete(res.id);
     }
+    this.cdr.markForCheck();
   }
 
   toggleSelectAllPage(event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
+    
+    const usersMarkedForReactivation = new Set<number>();
+
     this.pagedReservations.forEach(res => {
-      if (res.status === 'CONFIRMED' || res.status === 'FINISHED') return; // not selectable
-      // For CANCELLED we must ensure it is eligible for reactivation
-      if (res.status === 'CANCELLED' && !this.canSelectForReactivation(res)) return;
+      if (res.status === 'CONFIRMED' || res.status === 'FINISHED') return;
+      
+      if (res.status === 'CANCELLED') {
+        if (!this.canSelectForReactivation(res)) return;
+        
+        if (checked) {
+          if (usersMarkedForReactivation.has(res.userId)) {
+            res.selected = false;
+            this.selectedByAction.delete(res.id);
+            return; 
+          }
+          usersMarkedForReactivation.add(res.userId);
+        }
+      }
+
       res.selected = checked;
       if (checked) {
         const action = res.status === 'CANCELLED' ? 'reactivate' : 'cancel';
@@ -774,14 +742,34 @@ export class ReservasComponent implements OnInit, OnDestroy {
         this.selectedByAction.delete(res.id);
       }
     });
+    this.cdr.markForCheck();
   }
 
+  // ⚡ OPTIMIZACIÓN CRÍTICA: Desconectar detector durante bucle masivo
   toggleSelectAllGlobal(event: any) {
     const checked = (event.target as HTMLInputElement).checked;
     this.selectAllGlobal = checked;
+
+    this.cdr.detach(); // Detener detección
+
+    const usersMarkedForReactivation = new Set<number>();
+
     this.filteredReservations.forEach(res => {
       if (res.status === 'CONFIRMED' || res.status === 'FINISHED') return;
-      if (res.status === 'CANCELLED' && !this.canSelectForReactivation(res)) return;
+
+      if (res.status === 'CANCELLED') {
+        if (!this.canSelectForReactivation(res)) return;
+
+        if (checked) {
+          if (usersMarkedForReactivation.has(res.userId)) {
+             res.selected = false;
+             this.selectedByAction.delete(res.id);
+             return;
+          }
+          usersMarkedForReactivation.add(res.userId);
+        }
+      }
+
       res.selected = checked;
       if (checked) {
         const action = res.status === 'CANCELLED' ? 'reactivate' : 'cancel';
@@ -790,12 +778,12 @@ export class ReservasComponent implements OnInit, OnDestroy {
         this.selectedByAction.delete(res.id);
       }
     });
+
     if (!checked) this.selectedByAction.clear();
     this.setupPagination();
-  }
-
-  areAllSelectedOnPage(): boolean {
-    return this.pagedReservations.length > 0 && this.pagedReservations.every(r => r.selected || r.status === 'CONFIRMED' || r.status === 'FINISHED');
+    
+    this.cdr.reattach(); // Reanudar detección
+    this.cdr.markForCheck();
   }
 
   areAllSelected(): boolean {
@@ -807,11 +795,10 @@ export class ReservasComponent implements OnInit, OnDestroy {
     this.selectedByAction.delete(id);
   }
 
-  // ---------------- Operaciones masivas mediante un único mapa de selección ----------------
   cancelSelected() {
-    // all ids labeled 'cancel'
     const idsToCancel = Array.from(this.selectedByAction.entries()).filter(([, v]) => v === 'cancel').map(([k]) => k);
     if (idsToCancel.length === 0) return;
+    
     idsToCancel.forEach(id => {
       this.http.delete(this.endpoint(`/reservations/${id}/cancel`)).subscribe({
         next: () => {
@@ -819,94 +806,100 @@ export class ReservasComponent implements OnInit, OnDestroy {
           if (index !== -1) this.reservations[index].status = 'CANCELLED';
           this.removeFromSelectionById(id);
           this.filterReservations();
+          this.cdr.markForCheck();
         },
-        error: err => console.error('Error al cancelar:', err)
+        error: err => { 
+            console.error('Error al cancelar:', err);
+            this.cdr.markForCheck();
+        }
       });
     });
     this.showMessage('Reservaciones seleccionadas canceladas.', 'success');
   }
 
-
-
-  // Reactivación masiva
   reactivateSelected() {
-    const idsToReactivate = Array.from(this.selectedByAction.entries())
+    const rawIds = Array.from(this.selectedByAction.entries())
       .filter(([, v]) => v === 'reactivate')
       .map(([k]) => k);
 
-    if (idsToReactivate.length === 0) return;
+    if (rawIds.length === 0) return;
 
-    this.http.patch<any[]>(this.endpoint('/reservations/reactivate-bulk'), idsToReactivate)
-      .subscribe({
-        next: results => {
-          const dialogData: ReactivateResult[] = [];
+    const selectedReservations = this.reservations.filter(r => rawIds.includes(r.id));
 
-          results.forEach(result => {
-            const resIndex = this.reservations.findIndex(r => r.id === result.id);
-            if (resIndex === -1) return;
+    const uniqueUserIds = new Set<number>();
+    const finalIds: string[] = [];
+    const duplicateIds: string[] = [];
 
-            const res = this.reservations[resIndex];
+    selectedReservations.forEach(res => {
+      const hasActiveGlobal = this.reservations.some(r => 
+        r.userId === res.userId && 
+        r.id !== res.id && 
+        (r.status === 'PENDING' || r.status === 'REACTIVATED')
+      );
 
-            if (result.status === 'success') {
-              const updated = { ...res };
-              updated.status = 'REACTIVATED';
-              updated.selected = false;
+      if (hasActiveGlobal || uniqueUserIds.has(res.userId)) {
+        duplicateIds.push(res.id);
+      } else {
+        uniqueUserIds.add(res.userId);
+        finalIds.push(res.id);
+      }
+    });
 
-              // Formateo seguro de horas
-              updated.startTime = updated.startTime 
-                ? this.format24To12(this.to24ForComparison(updated.startTime)) 
-                : '';
-              updated.endTime = updated.endTime 
-                ? this.format24To12(this.to24ForComparison(updated.endTime)) 
-                : '';
-
-              this.reservations[resIndex] = updated;
-              this.selectedByAction.delete(result.id);
-
-              dialogData.push({
-                code: updated.code ?? '',
-                message: 'Reactivada correctamente',
-                status: 'success'
-              });
-            } else {
-              dialogData.push({
-                code: res.code ?? '',
-                message: result.message ?? 'Error desconocido',
-                status: 'failed'
-              });
-            }
-          });
-
-          this.filterReservations();
-
-          if (dialogData.length > 0 && !this.reactivateDialogRef) {
-            this.reactivateDialogRef = this.dialog.open(ReactivateErrorDialogComponent, {
-              width: '500px',
-              data: dialogData
-            });
-
-            this.reactivateDialogRef.afterClosed().subscribe(() => {
-              this.reactivateDialogRef = null;
-            });
-          }
-        },
-        error: err => {
-          console.error('Error al reactivar masivamente:', err);
-          this.showMessage('Error al reactivar las reservas seleccionadas.', 'error');
-        }
+    if (duplicateIds.length > 0) {
+      duplicateIds.forEach(id => {
+        const index = this.reservations.findIndex(r => r.id === id);
+        if (index !== -1) this.reservations[index].selected = false;
+        this.selectedByAction.delete(id);
       });
+      this.showMessage(`Se omitieron ${duplicateIds.length} reservas (límite de 1 activa por usuario).`, 'warning');
+    }
+
+    if (finalIds.length === 0) return;
+
+    this.http.patch<any[]>(this.endpoint('/reservations/reactivate-bulk'), finalIds).subscribe({
+      next: results => {
+        const dialogData: ReactivateResult[] = [];
+        results.forEach(result => {
+          const resIndex = this.reservations.findIndex(r => r.id === result.id);
+          if (resIndex === -1) return;
+          const res = this.reservations[resIndex];
+
+          if (result.status === 'success') {
+            const updated = { ...res };
+            updated.status = 'REACTIVATED';
+            updated.selected = false;
+            updated.startTime = updated.startTime ? this.format24To12(this.to24ForComparison(updated.startTime)) : '';
+            updated.endTime = updated.endTime ? this.format24To12(this.to24ForComparison(updated.endTime)) : '';
+            this.reservations[resIndex] = updated;
+            this.selectedByAction.delete(result.id);
+            dialogData.push({ code: updated.code ?? '', message: 'Reactivada correctamente', status: 'success' });
+          } else {
+            dialogData.push({ code: res.code ?? '', message: result.message ?? 'Error desconocido', status: 'failed' });
+          }
+        });
+
+        this.filterReservations();
+        if (dialogData.length > 0 && !this.reactivateDialogRef) {
+          this.reactivateDialogRef = this.dialog.open(ReactivateErrorDialogComponent, {
+            width: '500px',
+            data: dialogData
+          });
+          this.reactivateDialogRef.afterClosed().subscribe(() => { this.reactivateDialogRef = null; });
+        }
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        console.error('Error al reactivar masivamente:', err);
+        this.showMessage('Error al reactivar las reservas seleccionadas.', 'error');
+        this.cdr.markForCheck();
+      }
+    });
   }
 
-  // ---------------- Validadores / ayudantes para tooltips de la interfaz de usuario ----------------
   canSelectForReactivation(res: ReservationDTO): boolean {
     if (res.status !== 'CANCELLED') return false;
-    // user cannot have another active (PENDING | REACTIVATED)
-    const userHasActive = this.reservations.some(r =>
-      r.userId === res.userId && r.id !== res.id && (r.status === 'PENDING' || r.status === 'REACTIVATED')
-    );
+    const userHasActive = this.reservations.some(r => r.userId === res.userId && r.id !== res.id && (r.status === 'PENDING' || r.status === 'REACTIVATED'));
     if (userHasActive) return false;
-
-    // check court date overlap
     const start = new Date(`${res.date}T${this.to24ForComparison(res.startTime)}`);
     const end = new Date(`${res.date}T${this.to24ForComparison(res.endTime)}`);
     const overlapping = this.reservations.some(r => {
@@ -939,16 +932,24 @@ export class ReservasComponent implements OnInit, OnDestroy {
   }
 
   getDeleteTooltip(res: ReservationDTO): string {
-    const start24 = this.to24ForComparison(res.startTime);
-    const end24 = this.to24ForComparison(res.endTime);
-    const conflicting = this.reservations.some(r =>
-      r.id !== res.id &&
-      (r.status === 'CONFIRMED' || r.status === 'FINISHED') &&
-      r.userId === res.userId &&
-      r.date === res.date &&
-      !(end24 <= this.to24ForComparison(r.startTime) || start24 >= this.to24ForComparison(r.endTime))
-    );
-    if (!conflicting) return 'No se puede eliminar: ninguna reserva confirmada o finalizada coincide con este horario';
-    return 'Disponible para eliminar';
+    if (res.status === 'FINISHED') {
+      return 'Eliminar reserva finalizada (Solo si no tiene factura)';
+    }
+
+    if (res.status === 'CANCELLED') {
+      const start24 = this.to24ForComparison(res.startTime);
+      const end24 = this.to24ForComparison(res.endTime);
+      const conflicting = this.reservations.some(r =>
+        r.id !== res.id &&
+        (r.status === 'CONFIRMED' || r.status === 'FINISHED') &&
+        r.userId === res.userId &&
+        r.date === res.date &&
+        !(end24 <= this.to24ForComparison(r.startTime) || start24 >= this.to24ForComparison(r.endTime))
+      );
+      if (!conflicting) return 'No se puede eliminar: conflicto de historial';
+      return 'Disponible para eliminar';
+    }
+
+    return '';
   }
 }

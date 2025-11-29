@@ -1,61 +1,65 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { NotificationService } from '../../shared/notificaciones/notification.service';
-import { take } from 'rxjs/operators';
+import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
+
+export interface ReservationDTO {
+  id: string;
+  userFullName?: string;
+  code: string;
+  courtName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  createdAt: string; 
+  
+  startTimeRaw?: string;
+  endTimeRaw?: string;
+}
+
+export interface CreateReservationRequest {
+  userId?: number; 
+  courtId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status?: string; 
+}
 
 @Injectable({ providedIn: 'root' })
 export class ReservationService {
-  protected readonly apiUrl = 'http://localhost:8080/api/reservations';
-  private lastCriticalMessage: string | null = null;
+  // 💡 2. Usar la variable de entorno para la URL base
+  private readonly apiUrl = `${environment.apiUrl}/reservations`;
 
-  constructor(
-    protected http: HttpClient,
-    protected notificationService: NotificationService
-  ) {}
+  constructor(private http: HttpClient) {}
 
-  /** 🌐 Consultar estado de reserva */
-  checkStatus(reservationId: string) {
-    return this.http.get<{ status: string; courtName?: string; startTime?: string; endTime?: string }>(
-      `${this.apiUrl}/${reservationId}/status`
-    );
+  // Crear reserva
+  createReservation(request: CreateReservationRequest): Observable<ReservationDTO> {
+    return this.http.post<ReservationDTO>(this.apiUrl, request);
   }
 
-  /** 🌐 Cancelar una reserva */
-  cancelReservationApi(reservationId: string) {
-    return this.http.delete<{ status?: string }>(`${this.apiUrl}/${reservationId}/cancel`);
+  getMyReservations(): Observable<ReservationDTO[]> {
+    return this.http.get<ReservationDTO[]>(`${this.apiUrl}/my`);
   }
 
-  /** 🔔 Notificación crítica (evita duplicados) */
-  showCriticalNotification(msg: string, type: 'success' | 'warning' | 'error' | 'info', duration = 4000) {
-    if (this.lastCriticalMessage === msg) return;
-    this.lastCriticalMessage = msg;
-    this.notificationService.show(msg, type, duration);
-    setTimeout(() => { this.lastCriticalMessage = null; }, duration);
+  // Obtener reservas por usuario (Para ADMIN o uso legacy)
+  getReservationsByUser(userId: number): Observable<ReservationDTO[]> {
+    return this.http.get<ReservationDTO[]>(`${this.apiUrl}/user/${userId}`);
   }
 
-  /** 🔔 Notificación normal */
-  showNotification(msg: string, type: 'success' | 'warning' | 'error' | 'info', duration = 4000) {
-    this.notificationService.show(msg, type, duration);
+  // Obtener reservas por cancha y fecha (para verificar disponibilidad)
+  getReservationsByCourtAndDate(courtId: string, date: string): Observable<ReservationDTO[]> {
+    return this.http.get<ReservationDTO[]>(`${this.apiUrl}/court/${courtId}?date=${date}`);
   }
 
-  /** 🔄 Manejar actualización de reserva (reactivada, cancelada, editada) */
-  handleReservationUpdate(event: { reservationId: string, status: string, reason?: string }) {
-    let message = '';
-    switch (event.status) {
-      case 'REACTIVATED':
-        message = `Tu reserva ${event.reservationId} ha sido reactivada.`;
-        this.showCriticalNotification(message, 'success');
-        break;
-      case 'CANCELLED':
-        message = event.reason === 'admin'
-          ? `La reserva ${event.reservationId} fue cancelada por el administrador.`
-          : `Tu reserva ${event.reservationId} ha sido cancelada.`;
-        this.showCriticalNotification(message, 'error');
-        break;
-      case 'EDITED':
-        message = `La reserva ${event.reservationId} fue modificada.`;
-        this.showNotification(message, 'info');
-        break;
-    }
+  // Obtener estado de una reserva específica (Polling)
+  getReservationStatus(id: string): Observable<{ status: string; courtName?: string; startTime?: string; endTime?: string }> {
+    return this.http.get<any>(`${this.apiUrl}/${id}/status`);
+  }
+
+  // Cancelar reserva
+  cancelReservation(id: string): Observable<any> {
+    return this.http.delete<{ status?: string }>(`${this.apiUrl}/${id}/cancel`);
   }
 }

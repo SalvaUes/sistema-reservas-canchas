@@ -1,136 +1,98 @@
-// frontend/src/app/services/auth.service.ts
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { jwtDecode } from 'jwt-decode';
-
-interface LoginResponse {
-  token: string;
-  role?: string;
-}
-
-interface JwtPayload {
-  sub: string;   // email o nombre de usuario
-  role?: string; // rol del usuario
-  id?: number;   // id del usuario si lo incluye el backend
-  exp: number;
-  iat: number;
-}
+import { Injectable, Inject } from '@angular/core';
+import { AuthService as Auth0Service } from '@auth0/auth0-angular'; 
+import { BehaviorSubject, Observable, of } from 'rxjs';
+import { filter, switchMap, tap, catchError, take } from 'rxjs/operators';
+import { DOCUMENT } from '@angular/common';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly apiUrl = 'http://localhost:8080/api/auth';
-  private readonly tokenKey = 'auth_token';
-
-  private emailSubject = new BehaviorSubject<string | null>(null);
   private roleSubject = new BehaviorSubject<string | null>(null);
-  private idSubject = new BehaviorSubject<number | null>(null);
+  private emailSubject = new BehaviorSubject<string | null>(null);
+  private errorSubject = new BehaviorSubject<string | null>(null);
 
-  /** Observables accesibles globalmente */
-  userEmail$ = this.emailSubject.asObservable();
   userRole$ = this.roleSubject.asObservable();
-  userId$ = this.idSubject.asObservable();
+  userEmail$ = this.emailSubject.asObservable();
+  authError$ = this.errorSubject.asObservable();
+  
+  isAuthenticated$: Observable<boolean>;
 
-  constructor(private http: HttpClient) {
-    this.loadFromToken();
+  constructor(
+    private auth0: Auth0Service,
+    private http: HttpClient,
+    @Inject(DOCUMENT) private doc: Document
+  ) {
+    this.isAuthenticated$ = this.auth0.isAuthenticated$;
+
+    this.auth0.isAuthenticated$.pipe(
+      filter(isAuth => isAuth), 
+      switchMap(() => this.syncWithBackend())
+    ).subscribe();
   }
 
-  // ------------------------
-  // 🔐 Autenticación
-  // ------------------------
-  login(email: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.apiUrl}/login`, { email, password });
+  notifyUserBlocked(message: string) {
+    this.errorSubject.next(message);
   }
 
-  register(userData: any): Observable<any> {
-    return this.http.post(`${this.apiUrl}/register`, userData);
+  private syncWithBackend(): Observable<any> {
+    this.errorSubject.next(null);
+
+    return this.http.post<any>(`${environment.apiUrl}/auth/login`, {}).pipe(
+      tap(backendUser => {
+        if (backendUser) {
+          this.emailSubject.next(backendUser.email);
+          this.roleSubject.next(backendUser.role); 
+        }
+      }),
+      catchError((err: HttpErrorResponse) => {
+        const errorMsg = err.error?.message || err.error?.error || JSON.stringify(err.error) || err.message;
+
+        if (errorMsg && (errorMsg.includes('inactiva') || errorMsg.includes('Contacte al administrador'))) {
+            this.notifyUserBlocked("Su cuenta está inactiva. Contacte al administrador.");
+            return of(null);
+        }
+
+        this.fallbackToToken();
+        return of(null);
+      })
+    );
   }
 
-  logout(): void {
-    this.safeRemoveToken();
-    this.emailSubject.next(null);
+  private fallbackToToken() {
+    this.auth0.user$.pipe(take(1)).subscribe((user: any) => {
+      if (user) {
+        const rolesClaim = `${environment.auth0.namespace}/roles`;
+        
+        const roles = user[rolesClaim] || [];
+        const role = roles.includes('ADMIN') ? 'ADMIN' : 'CLIENTE';
+        
+        this.roleSubject.next(role);
+        this.emailSubject.next(user.email || '');
+      }
+    });
+  }
+
+  loginWithRedirect() {
+    this.auth0.loginWithRedirect();
+  }
+
+  register() { 
+    this.auth0.loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } });
+  }
+
+  logout() {
     this.roleSubject.next(null);
-    this.idSubject.next(null);
+    this.emailSubject.next(null);
+    this.errorSubject.next(null);
+    this.auth0.logout({ 
+      logoutParams: { returnTo: this.doc.location.origin } 
+    });
   }
 
-  isLogged(): boolean {
-    const token = this.getToken();
-    if (!token) return false;
-
-    try {
-      const decoded = jwtDecode<JwtPayload>(token);
-      const now = Math.floor(Date.now() / 1000);
-      return decoded.exp > now; // token no expirado
-    } catch {
-      return false;
-    }
-  }
-
-  // ------------------------
-  // 🧠 Token helpers
-  // ------------------------
-  saveToken(token: string): void {
-    this.safeSetToken(token);
-    this.decodeToken(token);
-  }
-
-  getToken(): string | null {
-    return this.safeGetToken();
-  }
-
-  private safeGetToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem(this.tokenKey);
-  }
-
-  private safeSetToken(token: string): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(this.tokenKey, token);
-  }
-
-  private safeRemoveToken(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(this.tokenKey);
-  }
-
-  // ------------------------
-  // 🧩 Decodificación
-  // ------------------------
-  private decodeToken(token: string): void {
-    try {
-      const decoded = jwtDecode<JwtPayload>(token);
-      this.emailSubject.next(decoded.sub || null);
-      this.roleSubject.next(decoded.role || null);
-      this.idSubject.next(decoded.id ?? null);
-    } catch {
-      this.emailSubject.next(null);
-      this.roleSubject.next(null);
-      this.idSubject.next(null);
-    }
-  }
-
-  // ------------------------
-  // ⚙️ Métodos síncronos
-  // ------------------------
-  getUserEmail(): string | null {
-    return this.emailSubject.value;
-  }
-
-  getUserRole(): string | null {
-    return this.roleSubject.value;
-  }
-
-  getUserId(): number | null {
-    return this.idSubject.value;
-  }
-
-  // ------------------------
-  // 🔁 Cargar datos al iniciar app
-  // ------------------------
-  private loadFromToken(): void {
-    const token = this.safeGetToken();
-    if (token) this.decodeToken(token);
-  }
+  getUserRole() { return this.roleSubject.value; }
+  getUserEmail() { return this.emailSubject.value; }
+  getAccessToken() { return this.auth0.getAccessTokenSilently(); }
 }

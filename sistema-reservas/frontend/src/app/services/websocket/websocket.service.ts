@@ -1,7 +1,10 @@
 import { Injectable, NgZone } from '@angular/core';
 import { Client, IMessage } from '@stomp/stompjs';
-import { NotificationService, NotificationType } from '../../shared/notificaciones/notification.service';
+import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { WEBSOCKET_CONFIG } from './websocket.config';
+
+// Definimos tipos para evitar errores de 'any'
+export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
 export interface WebSocketNotification {
   message: string;
@@ -31,7 +34,6 @@ export class WebSocketService {
       reconnectDelay: WEBSOCKET_CONFIG.RECONNECT_DELAY,
       heartbeatIncoming: WEBSOCKET_CONFIG.HEARTBEAT_IN,
       heartbeatOutgoing: WEBSOCKET_CONFIG.HEARTBEAT_OUT,
-      debug: (msg: string) => console.debug('[STOMP]', msg),
     });
 
     this.client.onConnect = () => {
@@ -94,16 +96,19 @@ export class WebSocketService {
         duration: payload.duration ?? 5000,
       };
 
-      // Evita mostrar mensajes duplicados
+      // Evita mostrar mensajes duplicados (Cooldown)
       const cacheKey = `${channel}:${notification.message}:${notification.type}`;
       const now = Date.now();
       const lastShown = this.lastMessageCache.get(cacheKey) ?? 0;
+      
       if (now - lastShown < WEBSOCKET_CONFIG.MESSAGE_COOLDOWN_MS) return;
+      
       this.lastMessageCache.set(cacheKey, now);
 
       // Ejecuta en zona segura para actualizar la UI
       this.ngZone.run(() =>
-        this.notificationService.pushRealtimeNotification(notification)
+        // Asegúrate de que tu NotificationService tenga este método o usa .show()
+        this.notificationService.show(notification.message, notification.type, notification.duration)
       );
     });
   }

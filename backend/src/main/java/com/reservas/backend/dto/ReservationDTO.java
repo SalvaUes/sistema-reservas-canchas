@@ -32,7 +32,9 @@ public class ReservationDTO {
 
     private Long userId;
     private String userFullName;
-    private String email; // nuevo campo
+    private String email;
+    
+    private LocalDateTime createdAt;
 
     public ReservationDTO() {}
 
@@ -44,6 +46,7 @@ public class ReservationDTO {
         this.startTime = reservation.getStartTime();
         this.endTime = reservation.getEndTime();
         this.status = reservation.getStatus();
+        this.createdAt = reservation.getCreatedAt(); // 💡 Mapear
 
         // Datos de la cancha
         if (reservation.getCourt() != null) {
@@ -60,7 +63,7 @@ public class ReservationDTO {
                     reservation.getUser().getFirstName() != null ? reservation.getUser().getFirstName() : "",
                     reservation.getUser().getLastName() != null ? reservation.getUser().getLastName() : ""
             ).trim();
-            this.email = reservation.getUser().getEmail(); // Se agrega el email
+            this.email = reservation.getUser().getEmail();
         }
 
         updateTotalPrice();
@@ -128,6 +131,10 @@ public class ReservationDTO {
 
     public String getEmail() { return email; } 
     public void setEmail(String email) { this.email = email; } 
+    
+    // 💡 Getter/Setter createdAt
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getStartDateTime() {
         if (date == null || startTime == null) return null;

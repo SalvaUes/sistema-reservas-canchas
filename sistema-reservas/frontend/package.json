@@ -23,6 +23,7 @@
   },
   "private": true,
   "dependencies": {
+    "@angular/animations": "^20.3.12",
     "@angular/cdk": "^20.2.3",
     "@angular/common": "^20.3.0",
     "@angular/compiler": "^20.3.0",
@@ -33,7 +34,9 @@
     "@angular/platform-server": "^20.3.0",
     "@angular/router": "^20.3.0",
     "@angular/ssr": "^20.3.0",
+    "@auth0/auth0-angular": "^2.3.0",
     "@fortawesome/fontawesome-free": "^7.0.1",
+    "@stomp/stompjs": "^7.2.1",
     "express": "^5.1.0",
     "jspdf": "^3.0.2",
     "jspdf-autotable": "^5.0.2",

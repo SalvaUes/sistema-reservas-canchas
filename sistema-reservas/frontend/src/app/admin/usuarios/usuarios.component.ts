@@ -1,15 +1,17 @@
-import { Component, OnInit } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
 import { RouterModule } from '@angular/router';
 import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { MatDialog } from '@angular/material/dialog';
 import { AuthService } from '../../services/auth.service';
 import { ConfirmDialogComponent } from './confirm-dialog.component';
 import { MatTooltipModule } from '@angular/material/tooltip';
-
+import { environment } from '../../../environments/environment';
+import { interval, Subscription, forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { ReactivateErrorDialogComponent } from '../../shared/reactivate-error-dialog/reactivate-error-dialog.component';
 
 interface UserDTO {
   id: number;
@@ -17,8 +19,9 @@ interface UserDTO {
   lastName: string;
   email: string;
   phoneNumber?: string;
-  roles: { name: string }[];
-  status?: string; // ACTIVE o INACTIVE
+  role: string;
+  status: string;
+  auth0Id?: string;
 }
 
 @Component({
@@ -27,8 +30,10 @@ interface UserDTO {
   imports: [CommonModule, FormsModule, RouterModule, MatTooltipModule],
   templateUrl: './usuarios.html',
   styleUrls: ['./usuarios.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class UsuariosComponent implements OnInit {
+export class UsuariosComponent implements OnInit, OnDestroy {
+
   users: UserDTO[] = [];
   filteredUsers: UserDTO[] = [];
   paginatedUsers: UserDTO[] = [];
@@ -39,238 +44,241 @@ export class UsuariosComponent implements OnInit {
 
   searchTerm = '';
   showForm = false;
-  editMode = false;
   editingUserId: number | null = null;
-  showPassword = false;
 
   firstName = '';
   lastName = '';
   email = '';
-  password = '';
   phoneNumber = '';
-  role = '';
-  roles: string[] = [];
+  role = 'CLIENTE';
+  roles: string[] = ['ADMIN', 'CLIENTE'];
 
-  selectedUsers: UserDTO[] = [];
-  selectAllChecked = false;
+  // Selección optimizada
+  selectedUserIds = new Set<number>();
+  selectAllPage = false;
+  selectAllGlobal = false;
 
-  selectAllPage = false;    // Checkbox de la página actual
-  selectAllGlobal = false;  // Checkbox de todos los registros
+  get selectedCount(): number { return this.selectedUserIds.size; }
 
-  isSidePanelClosed = true;
   userEmail = '';
   userRole = '';
 
-  private apiUrl = 'http://localhost:8080/api/users';
+  private apiUrl = `${environment.apiUrl}/users`;
+  private pollingSub: Subscription | null = null;
 
   constructor(
     private http: HttpClient,
     private auth: AuthService,
     private notify: NotificationService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) {
-    this.userEmail = this.auth.getUserEmail() || 'admin@correo.com';
-    this.userRole = this.auth.getUserRole() || 'ROL_NO_DEFINIDO';
+    this.userEmail = this.auth.getUserEmail() || '';
+    this.userRole = this.auth.getUserRole() || '';
   }
 
   ngOnInit() {
     this.loadUsers();
-    this.loadRoles();
+
+    this.pollingSub = interval(5000).subscribe(() => {
+      if (!this.showForm) this.loadUsers(true);
+    });
   }
 
-  toggleSidePanel() {
-    this.isSidePanelClosed = !this.isSidePanelClosed;
+  ngOnDestroy() {
+    this.pollingSub?.unsubscribe();
   }
 
-  hoverPanel(isHovering: boolean) {
-    if (this.isSidePanelClosed) this.isSidePanelClosed = !isHovering ? true : false;
-  }
-
-  logout() {
-    this.auth.logout();
-    location.href = '/login';
-  }
-
-  togglePassword() {
-    this.showPassword = !this.showPassword;
-  }
-
-  showMessage(msg: string, type: 'error' | 'warning' | 'success' = 'error') {
-    this.notify.show(msg, type, 5000);
-  }
-
-  // Cargar usuarios
-  loadUsers() {
+  loadUsers(isPolling = false) {
     this.http.get<UserDTO[]>(this.apiUrl).subscribe({
       next: res => {
         this.users = res;
-        this.filterUsers();
+
+        if (!isPolling) this.filterUsers();
+        else this.applyFilterOnly();
+        this.cdr.markForCheck();
       },
-      error: () => this.showMessage('Error al cargar usuarios.', 'error')
-    });
-  }
-
-  // Cargar roles
-  loadRoles() {
-    this.http.get<{ name: string }[]>('http://localhost:8080/api/roles').subscribe({
-      next: res => {
-        // Excluir el rol 'USER' solo para creación
-        this.roles = res.map(r => r.name).filter(r => r !== 'USER');
-
-        // Asignar rol por defecto si no hay seleccionado
-        if (!this.role && this.roles.length > 0) this.role = this.roles[0];
-      },
-      error: () => this.showMessage('Error al cargar roles.', 'error')
-    });
-  }
-
-  get selectedCount(): number {
-    return this.selectedUsers.length;
-  }
-
-
-  // Seleccionar/deseleccionar todos en la página visible
-  toggleSelectAll(event: Event) {
-    const checked = (event.target as HTMLInputElement).checked;
-    this.selectAllChecked = checked;
-
-    this.paginatedUsers.forEach(user => {
-      if (user.email === this.userEmail) return; // nunca seleccionar al usuario logeado
-      if (checked && !this.selectedUsers.includes(user)) {
-        this.selectedUsers.push(user);
-      }
-      if (!checked) {
-        this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
+      error: () => {
+        if (!isPolling) this.showMessage('Error al cargar usuarios.', 'error');
+        this.cdr.markForCheck();
       }
     });
   }
 
-  toggleSelectAllGlobal(event: Event) {
-    const checked = (event.target as HTMLInputElement).checked;
-    this.selectAllGlobal = checked;
+  applyFilterOnly() {
+    const term = this.searchTerm.trim().toLowerCase();
 
-    if (checked) {
-      this.selectedUsers = this.users.filter(u => u.email !== this.userEmail);
-      this.selectAllPage = true; // marcar checkbox de página también
-      this.showMessage('Estás seleccionando todos los registros.', 'warning');
+    if (!term) {
+      this.filteredUsers.length = 0;
+      this.filteredUsers.push(...this.users);
     } else {
-      this.selectedUsers = [];
-      this.selectAllPage = false;
+      this.filteredUsers = this.users.filter(u => {
+        const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+        const email = u.email.toLowerCase();
+        const role = (u.role || '').toLowerCase();
+        const status = (u.status || '').toLowerCase();
+
+        const matchStatus = (term === 'activo' && status === 'active') ||
+                            (term === 'inactivo' && status === 'inactive');
+
+        return fullName.includes(term) || email.includes(term) || role.includes(term) || matchStatus;
+      });
     }
+
+    this.setupPagination();
+  }
+
+  // ---------------- SELECCIÓN OPTIMIZADA ----------------
+
+  onUserSelect(user: UserDTO, ev: Event) {
+    const checked = (ev.target as HTMLInputElement).checked;
+
+    if (checked) this.selectedUserIds.add(user.id);
+    else this.selectedUserIds.delete(user.id);
+
+    this.selectAllPage = this.paginatedUsers
+      .filter(u => u.email !== this.userEmail)
+      .every(u => this.selectedUserIds.has(u.id));
   }
 
   toggleSelectAllPage(event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
     this.selectAllPage = checked;
 
-    // Si es solo selección por página, desactivamos global
-    if (!this.selectAllGlobal) {
-      this.paginatedUsers.forEach(user => {
-        if (user.email === this.userEmail) return;
+    this.paginatedUsers.forEach(u => {
+      if (u.email === this.userEmail) return;
 
-        if (checked && !this.selectedUsers.includes(user)) {
-          this.selectedUsers.push(user);
-        }
-        if (!checked) {
-          this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
-        }
-      });
-    }
+      if (checked) this.selectedUserIds.add(u.id);
+      else this.selectedUserIds.delete(u.id);
+    });
+
+    if (!checked) this.selectAllGlobal = false;
   }
 
-  // Selección individual
-  toggleSelection(user: UserDTO, event: Event) {
+  toggleSelectAllGlobal(event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
+    this.selectAllGlobal = checked;
+
+    // Optimización: Suspender la detección de cambios mientras procesamos datos masivos
+    this.cdr.detach(); 
+
+    this.selectedUserIds.clear();
 
     if (checked) {
-      if (user.email === this.userEmail) return;
-      this.selectedUsers.push(user);
-    } else {
-      this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
-      this.selectAllGlobal = false; // desactivar selección global si se deselecciona alguno
+      // Usar un bucle for tradicional es ligeramente más rápido que forEach en arrays gigantes
+      for (const u of this.filteredUsers) {
+        if (u.email !== this.userEmail) {
+          this.selectedUserIds.add(u.id);
+        }
+      }
     }
 
-    // Actualizar checkbox de la página actual
-    this.selectAllPage = this.paginatedUsers.every(
-      u => u.email === this.userEmail || this.selectedUsers.includes(u)
-    );
+    this.setupPagination();
+    
+    // Reactivar detección y marcar
+    this.cdr.reattach();
+    this.cdr.markForCheck();
   }
 
-  // Activar usuarios seleccionados
+  areAllSelected(): boolean {
+    const selectable = this.paginatedUsers.filter(u => u.email !== this.userEmail);
+    return selectable.every(u => this.selectedUserIds.has(u.id));
+  }
+
+  // ---------------- ACCIONES MASIVAS ----------------
+
   activateSelectedUsers() {
-    if (this.selectedUsers.length === 0) {
-      this.showMessage('No hay usuarios seleccionados.', 'warning');
-      return;
-    }
-
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '350px',
-      data: {
-        title: 'Reactivar usuarios',
-        message: `¿Desea reactivar a ${this.selectedUsers.length} usuario(s)?`
-      }
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
-
-      const headers = new HttpHeaders({ userRole: this.userRole });
-      this.selectedUsers.forEach(user => {
-        this.http.put(`${this.apiUrl}/${user.id}/activate`, {}, { headers }).subscribe({
-          next: () => {
-            user.status = 'ACTIVE';
-            this.filterUsers();
-          },
-          error: () => this.showMessage(`Error al reactivar "${user.firstName}"`, 'error')
-        });
-      });
-
-      this.showMessage('Usuarios reactivados.', 'success');
-      this.selectedUsers = [];
-      this.selectAllChecked = false; // 🔹 Reiniciar checkbox “Seleccionar todos”
-    });
+    const usersToProcess = this.users.filter(u => this.selectedUserIds.has(u.id));
+    if (usersToProcess.length > 0)
+      this.processBatchStatusChange(usersToProcess, 'ACTIVE', 'Reactivar');
   }
 
-  // Desactivar usuarios seleccionados
   deactivateSelectedUsers() {
-    if (this.selectedUsers.length === 0) {
-      this.showMessage('No hay usuarios seleccionados.', 'warning');
-      return;
+    const usersToProcess = this.users.filter(u =>
+      this.selectedUserIds.has(u.id) &&
+      u.email !== this.userEmail &&
+      u.role !== 'ADMIN'
+    );
+
+    if (this.selectedUserIds.size > usersToProcess.length) {
+      this.showMessage('Se omitieron administradores o tu usuario.', 'warning');
     }
 
+    if (usersToProcess.length > 0)
+      this.processBatchStatusChange(usersToProcess, 'INACTIVE', 'Desactivar');
+  }
+
+  private processBatchStatusChange(users: UserDTO[], newStatus: string, actionLabel: string) {
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '350px',
       data: {
-        title: 'Desactivar usuarios',
-        message: `¿Desea desactivar a ${this.selectedUsers.length} usuario(s)?`
+        title: `${actionLabel} usuarios`,
+        message: `¿Desea ${actionLabel.toLowerCase()} a ${users.length} usuario(s)?`
       }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
+    dialogRef.afterClosed().subscribe(confirm => {
+      if (!confirm) return;
 
-      const headers = new HttpHeaders({ userRole: this.userRole });
-      this.selectedUsers.forEach(user => {
-        this.http.delete(`${this.apiUrl}/${user.id}`, { headers }).subscribe({
-          next: () => {
-            user.status = 'INACTIVE';
-            this.filterUsers();
-          },
-          error: () => this.showMessage(`Error al desactivar "${user.firstName}"`, 'error')
-        });
+      const tasks = users.map(user => {
+        const payload = {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phoneNumber: user.phoneNumber,
+          roleName: user.role,
+          status: newStatus
+        };
+
+        return this.http.put<UserDTO>(`${this.apiUrl}/${user.id}`, payload).pipe(
+          map(() => ({ code: user.email, message: `${actionLabel} exitoso`, status: 'success' as const })),
+          catchError(err => {
+            const errorMsg = typeof err.error === 'string'
+              ? err.error
+              : (err.error?.message || 'Error desconocido');
+
+            return of({ code: user.email, message: errorMsg, status: 'failed' as const });
+          })
+        );
       });
 
-      this.showMessage('Usuarios desactivados.', 'success');
-      this.selectedUsers = [];
-      this.selectAllChecked = false; // 🔹 Reiniciar checkbox “Seleccionar todos”
+      forkJoin(tasks).subscribe(results => {
+        this.loadUsers(true);
+        this.selectedUserIds.clear();
+        this.selectAllPage = false;
+        this.selectAllGlobal = false;
+
+        this.dialog.open(ReactivateErrorDialogComponent, {
+          width: '500px',
+          data: results
+        });
+      });
     });
   }
-  
-  // Filtrar y paginar
-  
+
+  deactivateUser(user: UserDTO) {
+    if (user.email === this.userEmail)
+      return this.showMessage('No puedes desactivar tu propio usuario.', 'warning');
+
+    if (user.role === 'ADMIN')
+      return this.showMessage('No se puede desactivar a un Administrador.', 'warning');
+
+    this.processBatchStatusChange([user], 'INACTIVE', 'Desactivar');
+  }
+
+  activateUser(user: UserDTO) {
+    this.processBatchStatusChange([user], 'ACTIVE', 'Reactivar');
+  }
+
+  // ---------------- FILTROS, FORM Y UI ----------------
+
+  hoverPanel(isHovering: boolean) { }
+  logout() { this.auth.logout(); }
+  showMessage(msg: string, type: 'error' | 'warning' | 'success' = 'error') {
+    this.notify.show(msg, type, 5000);
+  }
+
   filterUsers() {
     const term = this.searchTerm.trim().toLowerCase();
-
     if (!term) {
       this.filteredUsers = [...this.users];
       this.setupPagination();
@@ -280,204 +288,87 @@ export class UsuariosComponent implements OnInit {
     this.filteredUsers = this.users.filter(u => {
       const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
       const email = u.email.toLowerCase();
-      const role = u.roles[0]?.name.toLowerCase() || '';
-      const status = u.status?.toLowerCase() || '';
+      const role = (u.role || '').toLowerCase();
+      const status = (u.status || '').toLowerCase();
 
-      // Búsqueda exacta para estado
-      const matchStatus =
-        (term === 'activo' && status === 'active') ||
-        (term === 'inactivo' && status === 'inactive');
+      const matchStatus = (term === 'activo' && status === 'active') ||
+                          (term === 'inactivo' && status === 'inactive');
 
-      // Búsqueda parcial para nombre, correo y rol
-      const matchText =
-        fullName.includes(term) ||
-        email.includes(term) ||
-        role.includes(term);
-
-      return matchText || matchStatus;
+      return fullName.includes(term) || email.includes(term) || role.includes(term) || matchStatus;
     });
 
     this.setupPagination();
   }
 
-
-  // Cuando se cambia de página
   setupPagination() {
     this.totalPages = Math.ceil(this.filteredUsers.length / this.itemsPerPage);
     this.currentPage = Math.min(this.currentPage, this.totalPages || 1);
+
     const start = (this.currentPage - 1) * this.itemsPerPage;
-    const end = start + this.itemsPerPage;
-    this.paginatedUsers = this.filteredUsers.slice(start, end);
+    this.paginatedUsers = this.filteredUsers.slice(start, start + this.itemsPerPage);
 
-    if (this.selectAllGlobal) {
-      // Si seleccionamos todos los registros, todos los checkboxes deben aparecer seleccionados
-      this.selectAllPage = true;
-    } else {
-      // Si no es selección global, marcar solo los de la página que ya están seleccionados
-      this.selectAllPage = this.paginatedUsers.every(
-        u => u.email === this.userEmail || this.selectedUsers.includes(u)
-      );
-    }
+    const selectable = this.paginatedUsers.filter(u => u.email !== this.userEmail);
+    this.selectAllPage = selectable.length > 0 && selectable.every(u => this.selectedUserIds.has(u.id));
   }
 
-  nextPage() {
-    if (this.currentPage < this.totalPages) {
-      this.currentPage++;
-      this.setupPagination();
-    }
-  }
+  nextPage() { if (this.currentPage < this.totalPages) { this.currentPage++; this.setupPagination(); } }
+  previousPage() { if (this.currentPage > 1) { this.currentPage--; this.setupPagination(); } }
 
-  previousPage() {
-    if (this.currentPage > 1) {
-      this.currentPage--;
-      this.setupPagination();
-    }
-  }
-
-  // Abrir formulario
-  openForm(editMode = false, user?: UserDTO) {
-    // Evitar editar usuarios inactivos
-    if (user?.status === 'INACTIVE') {
-      this.showMessage('No se puede editar un usuario inactivo.', 'warning');
-      return;
-    }
-
+  openForm(user: UserDTO) {
     this.showForm = true;
-    this.editMode = editMode;
-
-    if (editMode && user) {
-      this.editingUserId = user.id;
-      this.firstName = user.firstName;
-      this.lastName = user.lastName;
-      this.email = user.email;
-      this.password = '';
-      this.phoneNumber = user.phoneNumber || '';
-      this.role = user.roles[0]?.name || this.roles[0];
-    } else {
-      this.resetForm();
-    }
+    this.editingUserId = user.id;
+    this.firstName = user.firstName;
+    this.lastName = user.lastName;
+    this.email = user.email;
+    this.phoneNumber = user.phoneNumber || '';
+    this.role = user.role || 'CLIENTE';
   }
 
   cancelForm() {
     this.showForm = false;
-    this.editMode = false;
     this.editingUserId = null;
+    this.resetForm();
   }
 
   resetForm() {
     this.firstName = '';
     this.lastName = '';
     this.email = '';
-    this.password = '';
     this.phoneNumber = '';
-    this.role = this.roles[0] || '';
-  }
-
-  private buildUserPayload(): any {
-    const payload: any = {
-      firstName: this.firstName,
-      lastName: this.lastName,
-      email: this.email,
-      phoneNumber: this.phoneNumber,
-      roleName: this.role
-    };
-    if (!this.editMode || this.password) payload.password = this.password;
-    return payload;
+    this.role = 'CLIENTE';
   }
 
   submitForm() {
-    if (!this.firstName || !this.lastName || !this.email || (!this.editMode && !this.password)) {
-      this.showMessage('Por favor complete todos los campos obligatorios.', 'warning');
-      return;
+    if (!this.firstName || !this.lastName) {
+      return this.showMessage('Por favor complete todos los campos obligatorios.', 'warning');
     }
 
-    const payload = this.buildUserPayload();
+    if (!this.editingUserId) return;
 
-    if (!this.editMode) {
-      // Crear
-      this.http.post<UserDTO>(this.apiUrl, payload).subscribe({
-        next: user => {
-          this.users.push(user);
-          this.filterUsers();
-          this.cancelForm();
-          this.showMessage(`Usuario "${user.firstName} ${user.lastName}" creado.`, 'success');
-        },
-        error: () => this.showMessage('Error al crear usuario.')
-      });
-    } else if (this.editingUserId) {
-      // Actualizar
-      this.http.put<UserDTO>(`${this.apiUrl}/${this.editingUserId}`, payload).subscribe({
-        next: user => {
-          const index = this.users.findIndex(u => u.id === this.editingUserId);
-          if (index !== -1) this.users[index] = user;
-          this.filterUsers();
-          this.cancelForm();
-          this.showMessage(`Usuario "${user.firstName} ${user.lastName}" actualizado.`, 'success');
-        },
-        error: () => this.showMessage('Error al actualizar usuario.', 'error')
-      });
-    }
-  }
+    const payload = {
+      firstName: this.firstName,
+      lastName: this.lastName,
+      phoneNumber: this.phoneNumber,
+      roleName: this.role
+    };
 
-  // Desactivar usuario
-  deactivateUser(user: UserDTO) {
-    // Evitar que el usuario logeado se desactive
-    if (user.email === this.userEmail) {
-      this.showMessage('No puedes desactivar tu propio usuario.', 'warning');
-      return;
-    }
+    this.http.put<UserDTO>(`${this.apiUrl}/${this.editingUserId}`, payload).subscribe({
+      next: updated => {
+        const index = this.users.findIndex(u => u.id === this.editingUserId);
+        if (index !== -1) this.users[index] = updated;
 
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '350px',
-      data: {
-        title: 'Desactivar usuario',
-        message: `¿Desea desactivar a "${user.firstName} ${user.lastName}"?`
+        this.filterUsers();
+        this.cancelForm();
+        this.showMessage('Usuario actualizado correctamente.', 'success');
+      },
+      error: err => {
+        const msg = typeof err.error === 'string' ? err.error : (err.error?.message || 'Error al actualizar usuario.');
+        this.showMessage(msg, 'error');
       }
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
-
-      const headers = new HttpHeaders({ userRole: this.userRole });
-      this.http.delete(`${this.apiUrl}/${user.id}`, { headers }).subscribe({
-        next: () => {
-          user.status = 'INACTIVE';
-          this.filterUsers();
-          this.showMessage(`Usuario "${user.firstName} ${user.lastName}" desactivado.`, 'success');
-        },
-        error: err => {
-          console.error(err);
-          this.showMessage('Error al desactivar usuario.', 'error');
-        }
-      });
     });
   }
 
-  // Reactivar usuario
-  activateUser(user: UserDTO) {
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '350px',
-      data: {
-        title: 'Reactivar usuario',
-        message: `¿Desea reactivar a "${user.firstName} ${user.lastName}"?`
-      }
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
-
-      const headers = new HttpHeaders({ userRole: this.userRole });
-      this.http.put(`${this.apiUrl}/${user.id}/activate`, {}, { headers }).subscribe({
-        next: () => {
-          user.status = 'ACTIVE';
-          this.filterUsers();
-          this.showMessage(`Usuario "${user.firstName} ${user.lastName}" reactivado.`, 'success');
-        },
-        error: err => {
-          console.error(err);
-          this.showMessage('Error al reactivar usuario.', 'error');
-        }
-      });
-    });
+  trackById(index: number, item: UserDTO): number {
+    return item.id;
   }
 }

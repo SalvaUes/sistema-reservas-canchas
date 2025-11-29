@@ -1,0 +1,114 @@
+:host {
+  display: block;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard {
+  display: flex;
+  height: 100%;
+  background: #f4f4f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  .side-panel {
+    width: 250px;
+    /* Quitamos el background fijo de aquí, ahora es dinámico abajo */
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s ease, background 0.3s ease; /* Agregamos transición al color */
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+
+    /* 🎨 TEMA ADMIN (Gris oscuro / Negro) */
+    &.admin-theme {
+      background: linear-gradient(180deg, #1f1f1f, #2d2d2d);
+      
+      /* Ejemplo: Si quieres el botón activo de un color específico para admin */
+      nav a.active {
+        background: rgba(255, 255, 255, 0.2); 
+        border-left: 4px solid #ff4b4b; /* Acento rojo */
+      }
+    }
+
+    /* 🎨 TEMA CLIENTE (Azul) */
+    &.client-theme {
+      background: linear-gradient(180deg, #082761, #02579c);
+      
+      nav a.active {
+        background: rgba(255, 255, 255, 0.2);
+        border-left: 4px solid #4a90e2; /* Acento azul claro */
+      }
+    }
+
+    &.closed {
+      width: 70px;
+      h2, .user-info, nav span, .logout-btn span { display: none; }
+      nav a, .logout-btn { justify-content: center; padding: 0.7rem 0; }
+      /* Quitamos el borde izquierdo al estar cerrado para que se vea centrado */
+      nav a.active { border-left: none; }
+    }
+
+    .toggle-btn {
+      position: absolute; top: 10px; right: 10px;
+      background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem;
+      transition: transform 0.2s;
+      &:hover { color: #ff4b4b; transform: scale(1.1); }
+    }
+
+    h2 { margin-bottom: 2rem; font-size: 1.2rem; white-space: nowrap; margin-top: 0.5rem; }
+
+    nav {
+      display: flex; flex-direction: column; gap: 0.5rem; flex: 1; margin-top: 1rem;
+
+      a {
+        display: flex; align-items: center; gap: 12px;
+        color: #ccc; text-decoration: none; padding: 0.8rem 1rem;
+        border-radius: 4px; /* Un poco menos redondeado para el borde lateral */
+        transition: all 0.2s; white-space: nowrap;
+        min-height: 44px;
+
+        &:hover {
+          background: rgba(255,255,255,0.1);
+          color: white;
+          transform: translateX(3px);
+        }
+        
+        &.active {
+            color: white;
+            font-weight: 600;
+        }
+        
+        i { width: 24px; text-align: center; font-size: 1.1rem; }
+      }
+    }
+
+    .user-info {
+      margin-top: auto; padding: 1rem; background: rgba(255,255,255,0.1);
+      border-radius: 8px; font-size: 0.85rem; text-align: center;
+      p { margin: 2px 0; word-break: break-all;}
+      .role-text { color: #ddd; font-size: 0.75rem; font-weight: bold; }
+    }
+
+    .logout-btn {
+      margin-top: 1rem; background: #d32f2f; color: white; border: none;
+      padding: 0.8rem; border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      justify-content: flex-start;
+      font-weight: 600;
+      &:hover { background: #b71c1c; }
+    }
+  }
+
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0; 
+    position: relative;
+  }
+}
+
+.hidden { display: none !important; }

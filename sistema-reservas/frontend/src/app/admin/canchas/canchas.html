@@ -1,49 +1,6 @@
 <div class="dashboard">
-  <!-- Panel lateral -->
-  <aside
-    class="side-panel"
-    [class.closed]="isSidePanelClosed"
-    (mouseenter)="hoverPanel(true)"
-    (mouseleave)="hoverPanel(false)"
-  >
-    <button class="toggle-btn" (click)="toggleSidePanel()">
-      {{ isSidePanelClosed ? '☰' : '✕' }}
-    </button>
-    <h2 *ngIf="!isSidePanelClosed">Panel Admin</h2>
-
-    <nav>
-      <a routerLink="/admin" routerLinkActive="active">
-        <i class="fas fa-home"></i>
-        <span *ngIf="!isSidePanelClosed">Inicio</span>
-      </a>
-      <a routerLink="/admin/usuarios" routerLinkActive="active">
-        <i class="fas fa-users"></i>
-        <span *ngIf="!isSidePanelClosed">Usuarios</span>
-      </a>
-      <a routerLink="/admin/canchas" routerLinkActive="active">
-        <i class="fas fa-futbol"></i>
-        <span *ngIf="!isSidePanelClosed">Canchas</span>
-      </a>
-      <a routerLink="/admin/reservas" routerLinkActive="active">
-        <i class="fas fa-calendar-check"></i>
-        <span *ngIf="!isSidePanelClosed">Reservas</span>
-      </a>
-
-    </nav>
-
-    <div class="user-info" *ngIf="!isSidePanelClosed">
-      <p>{{ userEmail }}</p>
-      <p>{{ userRole }}</p>
-    </div>
-
-    <button class="logout-btn" (click)="logout()">
-      <i class="fas fa-sign-out-alt"></i>
-      <span *ngIf="!isSidePanelClosed">Cerrar sesión</span>
-    </button>
-  </aside>
-
   <!-- Contenido principal -->
-  <main [class.closed]="isSidePanelClosed">
+  <main>
     <section class="canchas-section">
       <h1>Canchas</h1>
 

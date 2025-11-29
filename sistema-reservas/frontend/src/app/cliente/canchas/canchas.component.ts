@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, NgZone } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -7,6 +7,8 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { ReservationPendingService } from '../../services/reservation/reservation-pending.service';
+import { ReservationService } from '../../services/reservation/reservation.service';
+import { environment } from '../../../environments/environment';
 
 interface CourtDTO {
   id: string;
@@ -17,32 +19,18 @@ interface CourtDTO {
   pricePerHour: number;
 }
 
-interface ReservationDTO {
-  id: string;
-  code: string;
-  courtName: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-}
-
 @Component({
   selector: 'app-canchas',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './canchas.html',
   styleUrls: ['./canchas.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CanchasClienteComponent implements OnInit, OnDestroy {
   courts: CourtDTO[] = [];
   filteredCourts: CourtDTO[] = [];
   searchTerm = '';
-
-  isSidePanelClosed = true;
-  manualClose = false;
-  userEmail = '';
-  userRole = '';
 
   showModal = false;
   selectedCourt: CourtDTO | null = null;
@@ -54,229 +42,144 @@ export class CanchasClienteComponent implements OnInit, OnDestroy {
   sortDirection: 'asc' | 'desc' = 'asc';
   paginatedCourts: CourtDTO[] = [];
   selectedCourts: CourtDTO[] = [];
-  selectAllPage = false;
-  selectAllGlobal = false;
   currentPage = 1;
   pageSize = 10;
   totalPages = 1;
 
   private subs = new Subscription();
+  private readonly apiUrl = environment.apiUrl;
 
   constructor(
     private http: HttpClient,
-    private auth: AuthService,
+    private reservationService: ReservationService, 
+    public auth: AuthService,
     private notify: NotificationService,
     private reservationPendingService: ReservationPendingService,
-    private ngZone: NgZone
-  ) {
-    this.userEmail = this.auth.getUserEmail() || 'cliente@correo.com';
-    this.userRole = this.auth.getUserRole() || 'CLIENTE';
-  }
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit() {
     this.loadCourts();
+    
+    this.subs.add(this.reservationPendingService.reservationCancelled.subscribe(() => {
+        this.loadCourts();
+    }));
+    
+    this.subs.add(this.reservationPendingService.reservationStarted.subscribe(() => {
+        this.checkLocalUpdates();
+    }));
+  }
 
-    // -------------------- Escuchar eventos de reservas pendientes --------------------
-
-    const reservationSub = this.reservationPendingService.reservationCancelled
-      .subscribe(({ reservationId, reason }) => {
-        const msg = reason === 'auto'
-          ? `Tu reserva pendiente ha expirado automáticamente.`
-          : `La reserva fue cancelada correctamente.`;
-        this.showError(msg, 'error');
-      });
-
-    const reactivatedSub = this.reservationPendingService.reservationStarted
-    .subscribe(() => {
+  private checkLocalUpdates() {
       const active = this.reservationPendingService.getActiveReservation();
-      if (!active) return;
-
-      this.ngZone.run(() => {
-        // Mostrar notificación de reactivación
-        if (active.reactivated) {
-          this.showError(
-            `Tu reserva ha sido reactivada. Tienes 3 minutos para confirmar.`,
-            'warning'
-          );
-        }
-
-        // Comparación segura con localStorage para cambios de reserva
-        const localSaved = localStorage.getItem('activeReservation');
-        if (!localSaved) return;
-
-        try {
-          const parsed = JSON.parse(localSaved);
-
-          const normalize = (s: string) =>
-            (s || '')
-              .trim()
-              .toLowerCase()
-              .replace(/\./g, '')
-              .replace(/\s+/g, '');
-
-          const hasChanged =
-            normalize(parsed.courtName) !== normalize(active.courtName) ||
-            normalize(parsed.startTime) !== normalize(active.startTime) ||
-            normalize(parsed.endTime) !== normalize(active.endTime);
-
-          if (hasChanged) {
-            this.showError(
-              `La reserva ha sido modificada por el administrador.`,
-              'info'
-            );
-
-            //Actualizar reserva activa y forzar refresco del snackbar
-            this.reservationPendingService.updateActiveReservation({
-              courtName: active.courtName,
-              startTime: active.startTime,
-              endTime: active.endTime,
-            });
-
-            // Forzar actualización visual inmediata
-            const snackRef = (this.reservationPendingService as any).snackRef;
-            if (snackRef?.instance?.updateData) {
-              snackRef.instance.updateData(
-                active.courtName,
-                active.startTime,
-                active.endTime
-              );
-            }
-          }
-        } catch (err) {
-          console.warn('Error comparando reservas locales:', err);
-        }
-      });
-    });
-
-    this.subs.add(reservationSub);
-    this.subs.add(reactivatedSub);
+      if(active) {
+         const localSaved = localStorage.getItem('activeReservation');
+         if(localSaved) {
+            try {
+               const parsed = JSON.parse(localSaved);
+               const norm = (s: string) => (s || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+               if(norm(parsed.courtName) !== norm(active.courtName)) {
+                   this.reservationPendingService.updateActiveReservation({ courtName: active.courtName });
+               }
+            } catch {}
+         }
+      }
+      this.cdr.markForCheck();
   }
 
-  ngOnDestroy() {
-    this.subs.unsubscribe();
+  ngOnDestroy() { this.subs.unsubscribe(); }
+
+  logout() { 
+    this.auth.logout(); 
   }
 
-  // Panel lateral
-  toggleSidePanel() {
-    this.manualClose = !this.manualClose;
-    this.isSidePanelClosed = this.manualClose;
-  }
-
-  hoverPanel(state: boolean) {
-    if (!this.manualClose) this.isSidePanelClosed = !state;
-  }
-
-  logout() {
-    this.auth.logout();
-    location.href = '/login';
-  }
-
-  // Cargar y filtrar canchas
   loadCourts() {
-    this.http.get<CourtDTO[]>('http://localhost:8080/api/courts').subscribe({
+    this.http.get<CourtDTO[]>(`${this.apiUrl}/courts`).subscribe({
       next: res => {
-        this.ngZone.run(() => {
-          this.courts = res;
-          this.filteredCourts = [...res];
-          this.totalPages = Math.ceil(this.filteredCourts.length / this.pageSize);
-          this.currentPage = 1;
-          this.setPaginatedCourts();
-        });
+        this.courts = res;
+        this.filteredCourts = [...res];
+        this.totalPages = Math.ceil(this.filteredCourts.length / this.pageSize);
+        this.currentPage = 1;
+        this.setPaginatedCourts();
+        this.cdr.markForCheck();
       },
-      error: err => {
-        console.error('Error al cargar canchas:', err);
+      error: () => {
         this.notify.show('No se pudieron cargar las canchas.', 'error');
+        this.cdr.markForCheck();
       }
     });
   }
 
-  private normalizeString(str: string): string {
-    return str
-      .normalize('NFD')              // descompone caracteres con acentos
-      .replace(/[\u0300-\u036f]/g, '') // elimina los diacríticos
-      .toLowerCase();
+  private normalizeString(str: string): string { 
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); 
   }
-
+  
   filterCourts() {
     const term = this.normalizeString(this.searchTerm);
-
     let results = this.courts.filter(c =>
       this.normalizeString(c.name).includes(term) ||
       this.normalizeString(c.code).includes(term) ||
       this.normalizeString(c.sportType).includes(term) ||
       c.pricePerHour.toString().includes(term)
     );
-
-    results.sort((a,b) =>
-      this.sortDirection === 'asc'
-        ? a.pricePerHour - b.pricePerHour
-        : b.pricePerHour - a.pricePerHour
-    );
-
+    results.sort((a,b) => this.sortDirection === 'asc' ? a.pricePerHour - b.pricePerHour : b.pricePerHour - a.pricePerHour);
     this.filteredCourts = results;
     this.totalPages = Math.ceil(results.length / this.pageSize);
     this.currentPage = 1; 
     this.setPaginatedCourts();
+    this.cdr.markForCheck();
   }
 
-  toggleSortByPrice() {
-    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    this.filterCourts();
+  toggleSortByPrice() { 
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'; 
+    this.filterCourts(); 
   }
-
+  
   setPaginatedCourts() {
     const start = (this.currentPage - 1) * this.pageSize;
     this.paginatedCourts = this.filteredCourts.slice(start, start + this.pageSize);
+    this.cdr.markForCheck();
   }
 
-  get selectedCount(): number {
-    return this.selectedCourts.length;
+  nextPage() { 
+    if (this.currentPage < this.totalPages) { 
+      this.currentPage++; 
+      this.setPaginatedCourts(); 
+    } 
   }
 
-  // Paginación
-  nextPage() {
-    if (this.currentPage < this.totalPages) {
-      this.currentPage++;
-      this.setPaginatedCourts();
-    }
+  previousPage() { 
+    if (this.currentPage > 1) { 
+      this.currentPage--; 
+      this.setPaginatedCourts(); 
+    } 
   }
 
-  previousPage() {
-    if (this.currentPage > 1) {
-      this.currentPage--;
-      this.setPaginatedCourts();
-    }
-  }
-
-  // Modal de reserva
   openReservationModal(court: CourtDTO) {
     if (this.reservationPendingService.hasActiveReservation()) {
-      this.showError('Ya tienes una reserva pendiente. Confírma o espera que caduque antes de crear otra.', 'warning');
+      this.notify.show('Ya tienes una reserva pendiente. Confírma o espera que caduque.', 'warning');
       return;
     }
-
     this.selectedCourt = court;
     this.showModal = true;
+    this.cdr.markForCheck();
   }
 
-  closeModal() {
-    this.showModal = false;
+  closeModal() { 
+    this.showModal = false; 
+    this.cdr.markForCheck();
   }
 
   confirmReservation() {
     if (this.isSubmitting) return;
-    if (!this.selectedCourt) return;
-
-    if (!this.reservationDate || !this.startTime || !this.endTime) {
-      this.showError('Completa la fecha, hora de inicio y hora de fin.', 'warning');
+    if (!this.selectedCourt || !this.reservationDate || !this.startTime || !this.endTime) {
+      this.notify.show('Completa todos los campos.', 'warning');
       return;
     }
 
     const now = new Date();
-
-    // 🗓 Convierte fecha (string) y hora (HH:mm) a Date local real (sin UTC)
     const toLocalDate = (dateStr: string, timeStr: string): Date => {
-      let year: number, month: number, day: number;
+      let year, month, day;
       if (dateStr.includes('/')) [day, month, year] = dateStr.split('/').map(Number);
       else [year, month, day] = dateStr.split('-').map(Number);
       const [hour, minute] = timeStr.split(':').map(Number);
@@ -286,153 +189,101 @@ export class CanchasClienteComponent implements OnInit, OnDestroy {
     const startLocal = toLocalDate(this.reservationDate, this.startTime);
     const endLocal = toLocalDate(this.reservationDate, this.endTime);
 
-    // --------------------------------------
-    // 🕓 Validaciones de tiempo
-    // --------------------------------------
-    if (endLocal <= startLocal) {
-      this.showError('La hora de fin debe ser mayor que la de inicio.', 'warning');
-      return;
-    }
+    if (endLocal <= startLocal) { this.notify.show('La hora de fin debe ser mayor que la de inicio.', 'warning'); return; }
+    if (startLocal < now) { this.notify.show('No puedes reservar una fecha u hora pasada.', 'warning'); return; }
+    if ((startLocal.getTime() - now.getTime()) / 60000 < 10) { this.notify.show('Debes reservar con al menos 10 minutos de anticipación.', 'warning'); return; }
+    if ((endLocal.getTime() - startLocal.getTime()) / 60000 < 60) { this.notify.show('La duración mínima es de 1 hora.', 'warning'); return; }
 
-    if (startLocal < now) {
-      this.showError('No puedes reservar una fecha u hora pasada.', 'warning');
-      return;
-    }
-
-    const diffMinutes = (startLocal.getTime() - now.getTime()) / (1000 * 60);
-    if (diffMinutes < 10) {
-      this.showError('Debes reservar con al menos 10 minutos de anticipación.', 'warning');
-      return;
-    }
-
-    const duration = (endLocal.getTime() - startLocal.getTime()) / (1000 * 60);
-    if (duration < 60) {
-      this.showError('La duración mínima es de 1 hora.', 'warning');
-      return;
-    }
-
-    const userId = this.auth.getUserId();
-    if (!userId) {
-      this.showError('Usuario no detectado.', 'error');
-      return;
+    const userEmail = this.auth.getUserEmail();
+    if (!userEmail) { 
+        this.notify.show('Sesión no válida o usuario no identificado.', 'error'); 
+        return; 
     }
 
     this.isSubmitting = true;
+    this.cdr.markForCheck(); // Actualizar estado botón
 
-    // --------------------------------------
-    // 🔍 Verificar choques con otras reservas
-    // --------------------------------------
-    const formattedDate = this.reservationDate.includes('/')
-      ? this.reservationDate.split('/').reverse().join('-')
-      : this.reservationDate;
+    const formattedDate = this.reservationDate.includes('/') ? this.reservationDate.split('/').reverse().join('-') : this.reservationDate;
 
-    this.http.get<ReservationDTO[]>(
-      `http://localhost:8080/api/reservations/court/${this.selectedCourt.id}?date=${formattedDate}`
-    ).subscribe({
+    this.reservationService.getReservationsByCourtAndDate(this.selectedCourt.id, formattedDate).subscribe({
       next: (reservations) => {
-        const relevant = reservations.filter(r =>
-          ['PENDING', 'CONFIRMED', 'REACTIVATED', 'FINISHED'].includes(r.status)
-        );
-
-        const toMinutes = (time: string) => {
-          const [h, m] = time.split(':').map(Number);
-          return h * 60 + m;
+        const relevant = reservations.filter(r => ['PENDING', 'CONFIRMED', 'REACTIVATED', 'FINISHED'].includes(r.status));
+        
+        const toMinutes = (time: string) => { 
+            const [h, m] = time.split(':').map(Number); 
+            return h * 60 + m; 
         };
-
         const newStart = toMinutes(this.startTime);
         const newEnd = toMinutes(this.endTime);
 
         const overlapping = relevant.filter(r => {
           const rStart = toMinutes(r.startTime);
           const rEnd = toMinutes(r.endTime);
-          return newStart < rEnd && rStart < newEnd;
+          return newStart < rEnd && newEnd > rStart;
         });
 
         if (overlapping.length > 0) {
-          const closest = overlapping[0];
-          this.showError(
-            `No puedes reservar esta cancha. Ya existe una reserva ${closest.status.toLowerCase()} de ${this.formatTime12(closest.startTime)} a ${this.formatTime12(closest.endTime)}.`,
-            'warning'
-          );
+          overlapping.sort((a, b) => a.startTime.localeCompare(b.startTime));
+          const conflict = overlapping[0];
+          const startStr = this.formatTime12(conflict.startTime);
+          const endStr = this.formatTime12(conflict.endTime);
+
+          this.notify.show(`Ya existe una reserva de ${startStr} a ${endStr}. Elige otro horario.`, 'warning', 6000);
           this.isSubmitting = false;
+          this.cdr.markForCheck();
           return;
         }
-
-        this.createReservation(userId.toString(), formattedDate);
+        
+        this.createReservation(formattedDate);
       },
-      error: (err) => {
-        console.error(err);
-        this.showError('No se pudo verificar la disponibilidad de la cancha.', 'error');
+      error: () => {
+        this.notify.show('Error al verificar disponibilidad.', 'error');
         this.isSubmitting = false;
+        this.cdr.markForCheck();
       }
     });
   }
 
-
-  private createReservation(userId: string, formattedDate: string) {
-    const pad = (n: number) => n.toString().padStart(2, '0');
-
-    const normalizeDate = (dateStr: string): string => {
-      if (dateStr.includes('/')) {
-        const [d, m, y] = dateStr.split('/').map(Number);
-        return `${y}-${pad(m)}-${pad(d)}`;
-      }
-      return dateStr;
+  private createReservation(formattedDate: string) {
+    const payload = { 
+        courtId: this.selectedCourt!.id, 
+        date: formattedDate, 
+        startTime: this.startTime, 
+        endTime: this.endTime 
     };
 
-    const payload = {
-      userId: Number(userId),
-      courtId: this.selectedCourt!.id,
-      date: normalizeDate(formattedDate),
-      startTime: this.startTime, // ya en HH:mm
-      endTime: this.endTime,     // ya en HH:mm
-    };
-
-    console.log('📦 Enviando payload local (HH:mm):', payload);
-
-    this.http.post<any>('http://localhost:8080/api/reservations', payload).subscribe({
+    this.reservationService.createReservation(payload).subscribe({
       next: (reservation) => {
-        this.ngZone.run(() => {
           this.reservationPendingService.startPendingReservation(
-            reservation.id,
-            reservation.code,
-            3 * 60 * 1000,
-            this.selectedCourt!.name,
-            reservation.startTime,
-            reservation.endTime
+            reservation.id, 
+            reservation.code, 
+            reservation.date,  
+            this.selectedCourt!.name, 
+            reservation.startTime, 
+            reservation.endTime, 
+            (reservation as any).createdAt 
           );
 
           this.closeModal();
           this.isSubmitting = false;
-          this.showError(
-            `Reserva creada correctamente: ${this.formatTime12(reservation.startTime)} - ${this.formatTime12(reservation.endTime)}.`,
-            'success'
-          );
-        });
+          this.notify.show('Reserva creada correctamente.', 'success');
+          this.cdr.markForCheck();
       },
       error: (err) => {
-        console.error('❌ Error al crear reserva:', err);
-        let message = 'No se pudo crear la reserva. Verifica los datos.';
-        if (err.error?.message) message = err.error.message;
-        this.showError(message, 'error');
+        this.notify.show(err.error?.message || 'Error al crear reserva', 'error');
         this.isSubmitting = false;
+        this.cdr.markForCheck();
       }
     });
   }
 
-
-  // 🕑 Formato de hora amigable
   private formatTime12(timeStr: string): string {
-    const [hourStr, minuteStr] = timeStr.split(':');
-    let hour = parseInt(hourStr, 10);
-    const minute = parseInt(minuteStr, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12 || 12;
-    return `${hour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-  }
-
-  //Notificaciones
-  private showError(msg: string, type: 'error' | 'warning' | 'success' | 'info' = 'error') {
-    this.ngZone.run(() => this.notify.show(msg, type, 5000));
+    if(!timeStr) return '';
+    const [hStr, mStr] = timeStr.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
   }
 }

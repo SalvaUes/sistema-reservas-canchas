@@ -1,19 +1,22 @@
 import { Injectable, NgZone, OnDestroy } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { MatSnackBar, MatSnackBarRef } from '@angular/material/snack-bar';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter, take } from 'rxjs/operators';
 import { timer, Subscription, Subject } from 'rxjs';
 import { NotificationService } from '../../shared/notificaciones/notification.service';
 import { ReservationPendingSnackbarComponent, PendingSnackbarData } from '../../shared/notificaciones/reservation-pending-snackbar/reservation-pending-snackbar.component';
-import { AuthService } from '../../services/auth.service'; 
+import { AuthService } from '../../services/auth.service';
+import { ReservationService } from './reservation.service'; 
+import { ReservationReactivatedService } from './reservation-reactivated.service'; 
 
 interface PendingData {
+  userEmail: string | null;
   reservationId: string;
   reservationCode: string;
+  date: string;
   courtName: string;
-  startTime: string; 
-  endTime: string;   
+  startTime: string;
+  endTime: string;
   expireAt: number;
   originalExpireAt: number;
   extended: boolean;
@@ -26,457 +29,476 @@ export class ReservationPendingService implements OnDestroy {
   private activeReservation: PendingData | null = null;
   private isCancelling = false;
 
+  // Timers
   private uiIntervalId: any = null;
-  private backendCheckSub?: Subscription;
+  private globalPollingSub?: Subscription; 
   private autoCancelSub?: Subscription;
+  
   private lastCriticalMessage: string | null = null;
-
   private readonly uiIntervalMs = 1000;
-  private readonly backendCheckIntervalMs = 5000;
+  private readonly pollingIntervalMs = 5000; 
 
   reservationCancelled = new Subject<{ reservationId: string; reason: 'auto' | 'manual' | 'admin' | 'server' }>();
   reservationStarted = new Subject<void>();
 
   constructor(
     private snackBar: MatSnackBar,
-    private http: HttpClient,
+    private reservationService: ReservationService,
+    private reactivatedService: ReservationReactivatedService, 
     private ngZone: NgZone,
     private notificationService: NotificationService,
     private router: Router,
     private auth: AuthService
   ) {
-    // Restaurar si el usuario ya está logueado
-    if (this.auth.isLogged()) {
-      this.restorePreviousState();
-    }
-
-    // Restaurar después de login
-    this.auth.userEmail$.subscribe(email => {
-      if (email) this.restorePreviousState();
-    });
-
-    // 🔹 Restaurar si cambia de ruta
-    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
-      if (this.activeReservation && !this.snackRef) {
-        const remaining = this.activeReservation.expireAt - Date.now();
-        if (remaining > 0) {
-          this.showNotification(
-            this.activeReservation.courtName,
-            this.activeReservation.startTime, 
-            this.activeReservation.endTime,   
-            remaining
-          );
-        }
-      }
-    });
-  }
-
-  // -------------------- PUBLIC API --------------------
-
-  startPendingReservation(
-    id: string, code: string, remainingMs: number,
-    courtName: string, startTime: string, endTime: string // ✅ HH:mm
-  ) {
-    if (this.activeReservation && this.activeReservation.reservationId === id) {
-      const remainingInMem = Math.max(0, this.activeReservation.expireAt - Date.now());
-      this.showNotification(courtName, startTime, endTime, remainingInMem);
-      this.setAutoCancelTimer(remainingInMem);
-      this.startBackendPolling();
-      this.ngZone.run(() => this.reservationStarted.next());
-      return;
-    }
-
-    let expireAt = Date.now() + remainingMs;
+    // Restaurar estado
     const saved = this.safeGetItem('activeReservation');
     if (saved) {
-      try {
-        const parsed: PendingData = JSON.parse(saved);
-        if (parsed.reservationId === id && parsed.expireAt > Date.now()) {
-          expireAt = parsed.expireAt;
+        try { 
+            const parsed: PendingData = JSON.parse(saved);
+            
+            const isCorruptCourtName = /^\d{1,2}:\d{2}/.test(parsed.courtName);
+            const isMissingDate = !parsed.date;
+            const isInvalidDateString = parsed.date && !/\d/.test(parsed.date);
+
+            if (isCorruptCourtName || isMissingDate || isInvalidDateString) {
+                this.safeRemoveItem('activeReservation');
+                this.activeReservation = null;
+            } else {
+                this.activeReservation = parsed;
+            }
+        } catch {
+            this.safeRemoveItem('activeReservation');
         }
-      } catch {}
     }
 
-    this.activeReservation = {
-      reservationId: id,
-      reservationCode: code,
-      courtName,
-      startTime, 
-      endTime,   
-      expireAt,
-      originalExpireAt: expireAt,
-      extended: false
-    };
-
-    this.saveState();
-
-    const remaining = Math.max(0, expireAt - Date.now());
-    this.showNotification(courtName, startTime, endTime, remaining);
-    this.setAutoCancelTimer(remaining);
-    this.startBackendPolling();
-  }
-
-  reactivateReservation() {
-    if (!this.activeReservation) return;
-
-    const duration = 3 * 60 * 1000; // 3 min
-    this.activeReservation.expireAt = Date.now() + duration;
-    this.activeReservation.originalExpireAt = this.activeReservation.expireAt;
-    this.activeReservation.reactivated = true;
-    this.activeReservation.extended = false;
-
-    this.saveState();
-
-    if (this.snackRef?.instance) {
-      this.snackRef.instance.updateData(
-        this.activeReservation.courtName,
-        this.activeReservation.startTime,
-        this.activeReservation.endTime,
-        this.activeReservation.expireAt
-      );
-    }
-
-    this.setAutoCancelTimer(duration);
-    this.startBackendPolling();
-
-    this.ngZone.run(() => this.reservationStarted.next());
-
-    this.showCriticalNotification(
-      'Reserva reactivada por el administrador. Tienes 3 minutos para confirmar.',
-      'warning',
-      5000
-    );
-  }
-
-  extendTimeOnce(extraMinutes = 5, reason: 'payment' | 'manual' = 'manual') {
-    if (!this.activeReservation || this.activeReservation.extended || this.isCancelling) {
-      if (this.activeReservation?.extended) {
-        this.notificationService.show('Ya se extendió una vez, no se agregan más minutos.', 'warning', 4000);
+    this.auth.authError$.subscribe(err => {
+      if (err) {
+        this.stopGlobalPolling();
+        this.clearActiveReservationInMemory();
       }
-      return;
+    });
+
+    if (this.auth.getUserEmail()) {
+        this.startGlobalPolling();
     }
 
-    const extraMs = extraMinutes * 60 * 1000;
-    const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
-
-    this.activeReservation.expireAt = Date.now() + remaining + extraMs;
-    this.activeReservation.extended = true;
-
-    this.resetTimersAndSnackbar(remaining + extraMs);
-
-    const msg = reason === 'payment'
-      ? 'Extensión de tiempo por intento de pago (+5 minutos).'
-      : `Tiempo extendido (+${extraMinutes} minutos).`;
-
-    this.notificationService.show(msg, 'warning', 5000);
-  }
-
-  onPaymentAttempt() {
-    this.extendTimeOnce(5, 'payment');
-  }
-
-  // Llamada desde temporizador de expiración
-  private autoCancelReservation() {
-    if (!this.activeReservation) return;
-    this.cancelReservation(true);
-  }
-
-  // Ajuste en cancelReservation
-  cancelReservation(auto = false) {
-    if (!this.activeReservation || this.isCancelling) return;
-
-    this.isCancelling = true;
-    const id = this.activeReservation.reservationId;
-
-    this.http.delete<{ status?: string }>(`http://localhost:8080/api/reservations/${id}/cancel`)
-      .pipe(take(1))
-      .subscribe({
-        next: (res) => {
-          if (res?.status === 'CONFIRMED') {
-            this.notificationService.show('La reserva ya fue confirmada, no se cancela.', 'warning', 4000);
-          }
-          this.finalizeCancellation(auto, auto ? 'auto' : 'manual');
-        },
-        error: () => {
-          this.notificationService.show('Error al cancelar la reserva.', 'error', 4000);
-          this.finalizeCancellation(auto, auto ? 'auto' : 'manual');
-        }
-      });
-  }
-
-  forceCloseReservation() {
-    this.clearAllTimers();
-    this.dismissSnackbar();
-    this.activeReservation = null;
-    this.isCancelling = false;
-    this.safeRemoveItem('activeReservation');
-  }
-
-  revertExtension() {
-    if (!this.activeReservation || !this.activeReservation.extended) return;
-    this.activeReservation.expireAt = this.activeReservation.originalExpireAt;
-    this.activeReservation.extended = false;
-    this.saveState();
-    this.updateSnackbar();
-    this.notificationService.show('Extensión revertida.', 'warning', 3000);
-  }
-
-  hasActiveReservation() {
-    return !!this.activeReservation;
-  }
-
-  getActiveReservation() {
-    return this.activeReservation;
-  }
-
-  getRemainingTime(id: string): number | null {
-    const saved = localStorage.getItem('activeReservation');
-    if (!saved) return null;
-    const parsed = JSON.parse(saved);
-    if (parsed.reservationId !== id) return null;
-    const remaining = parsed.expireAt - Date.now();
-    return remaining > 0 ? remaining : 0;
-  }
-
-  closeLocalReservation() {
-    this.clearAllTimers();
-    this.dismissSnackbar();
-    if (this.activeReservation) {
-      this.reservationCancelled.next({
-        reservationId: this.activeReservation.reservationId,
-        reason: 'manual'
-      });
-    }
-    this.activeReservation = null;
-    this.isCancelling = false;
-    this.safeRemoveItem('activeReservation');
-  }
-
-  // -------------------- BACKEND & TIMER CONTROL --------------------
-
-  private startBackendPolling() {
-    const active = this.activeReservation;
-    if (!active) return;
-
-    this.backendCheckSub?.unsubscribe();
-    this.backendCheckSub = timer(0, this.backendCheckIntervalMs).subscribe(() => {
-      if (!this.activeReservation) return;
-
-      // Verificación local adicional
-      if (Date.now() >= this.activeReservation.expireAt && !this.isCancelling) {
-        console.warn('Reserva expirada localmente, cancelando...');
-        this.ngZone.run(() => this.cancelReservation(true));
-        return;
+    this.auth.userEmail$.subscribe(email => {
+      if (email) {
+        this.startGlobalPolling();
+      } else {
+        this.stopGlobalPolling();
+        this.clearActiveReservationInMemory();
       }
+    });
 
-      const id = this.activeReservation.reservationId;
-      this.http.get<{ status: string; courtName?: string; startTime?: string; endTime?: string }>(
-        `http://localhost:8080/api/reservations/${id}/status`
-      ).pipe(take(1)).subscribe({
-        next: res => this.ngZone.run(() => this.handleBackendStatus(res)),
-        error: () => {}
-      });
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
+      if (this.activeReservation && !this.snackRef) {
+        this.showNotificationFromState();
+      }
     });
   }
 
-  private handleBackendStatus(res: { status: string; courtName?: string; startTime?: string; endTime?: string }) {
+  // -------------------- POLLING GLOBAL --------------------
+
+  private startGlobalPolling() {
+    if (this.globalPollingSub && !this.globalPollingSub.closed) return;
+
+    this.globalPollingSub = timer(0, this.pollingIntervalMs).subscribe(() => {
+      // Doble verificación: si hay error de auth, no hacemos nada
+      if (this.auth['errorSubject']?.value) { // Acceso seguro opcional o confiar en la suscripción de arriba
+         this.stopGlobalPolling();
+         return;
+      }
+
+      const email = this.auth.getUserEmail();
+      if (!email) return;
+
+      if (this.activeReservation) {
+         this.checkActiveReservationStatus();
+      } else {
+         this.checkForNewOrReactivatedReservations();
+      }
+    });
+  }
+
+  private stopGlobalPolling() {
+    this.globalPollingSub?.unsubscribe();
+    this.globalPollingSub = undefined;
+  }
+
+  private checkActiveReservationStatus() {
+      if (!this.activeReservation) return;
+      this.reservationService.getReservationStatus(this.activeReservation.reservationId)
+        .pipe(take(1))
+        .subscribe({
+          next: (res) => this.ngZone.run(() => this.handleBackendStatus(res)),
+          error: (err) => {
+             if (err.status === 404) {
+                 this.finalizeCancellation(true, 'admin', false);
+             } else if (err.status === 403 || err.status === 401) {
+                 // 🛑 Detener inmediatamente si recibimos 403
+                 this.stopGlobalPolling();
+             }
+          }
+        });
+  }
+
+  private checkForNewOrReactivatedReservations() {
+      this.reservationService.getMyReservations().pipe(take(1)).subscribe({
+          next: (reservations) => {
+              const pending = reservations.find(r => r.status === 'PENDING' || r.status === 'REACTIVATED');
+              
+              if (pending) {
+                  this.ngZone.run(() => {
+                      this.startPendingReservation(
+                          pending.id,
+                          pending.code,
+                          pending.date,
+                          pending.courtName,    
+                          this.formatTime(pending.startTime), 
+                          this.formatTime(pending.endTime),
+                          pending.createdAt
+                      );
+
+                      if (pending.status === 'REACTIVATED') {
+                          if (this.activeReservation && !this.activeReservation.reactivated) {
+                              this.activeReservation.reactivated = true;
+                              this.saveState();
+                              this.showCriticalNotification('Tu reserva ha sido reactivada. Tienes 3 minutos.', 'warning', 5000);
+                              this.reactivatedService.emitReactivation(pending.id);
+                          }
+                      }
+                  });
+              }
+          },
+          error: (err) => {
+              if (err.status === 404) {
+                  return;
+              }
+              if (err.status === 403 || err.status === 401) {
+                  // 🛑 Detener polling inmediatamente al detectar bloqueo
+                  this.stopGlobalPolling();
+                  return;
+              }
+              console.error('Error polling reservations:', err);
+          }
+      });
+  }
+
+  // -------------------- MANEJO DE ESTADOS --------------------
+
+  private handleBackendStatus(res: { status: string; courtName?: string; startTime?: string; endTime?: string; date?: string }) {
     const active = this.activeReservation;
     if (!active) return;
 
     switch(res.status) {
       case 'REACTIVATED':
-        if (!active.reactivated) this.reactivateReservation();
+        if (!active.reactivated) {
+            this.reactivateReservation();
+        } 
+        this.handleMinorEdits(res); 
         break;
       case 'CANCELLED':
-        this.showCriticalNotification('La reserva fue cancelada por el administrador.', 'error', 4000);
-        this.finalizeCancellation(true, 'admin');
+        this.finalizeCancellation(true, 'admin', true);
         break;
       case 'CONFIRMED':
-        this.showCriticalNotification('La reserva fue confirmada en el servidor.', 'success', 4000);
-        this.finalizeCancellation(true, 'server');
+        this.finalizeCancellation(true, 'server', true);
         break;
-      default:
+      default: // PENDING
         this.handleMinorEdits(res);
     }
   }
 
-  private handleMinorEdits(res: { courtName?: string; startTime?: string; endTime?: string }) {
+  private handleMinorEdits(res: { courtName?: string; startTime?: string; endTime?: string; date?: string }) {
     const active = this.activeReservation;
     if (!active) return;
 
-    // Sin conversiones, se comparan directamente HH:mm
-    const changed =
-      res.courtName !== active.courtName ||
-      res.startTime !== active.startTime ||
-      res.endTime !== active.endTime;
+    const norm = (s: string) => (s || '').trim();
+    
+    const cleanTime = (t: any) => {
+       const str = this.formatTime(t);
+       return str.length === 5 ? str : str.substring(0, 5);
+    };
 
-    if (changed) {
+    const srvStart = cleanTime(res.startTime);
+    const srvEnd = cleanTime(res.endTime);
+    const locStart = cleanTime(active.startTime);
+    const locEnd = cleanTime(active.endTime);
+
+    const srvCourt = norm(res.courtName || '');
+    const locCourt = norm(active.courtName);
+    const srvDate = res.date ? res.date : active.date;
+
+    const startChanged = srvStart && srvStart !== locStart;
+    const endChanged = srvEnd && srvEnd !== locEnd;
+    const courtChanged = srvCourt && srvCourt !== locCourt;
+    const dateChanged = srvDate && srvDate !== active.date;
+
+    if (startChanged || endChanged || courtChanged || dateChanged) {
       this.updateActiveReservation({
         courtName: res.courtName ?? active.courtName,
-        startTime: res.startTime ?? active.startTime,
-        endTime: res.endTime ?? active.endTime
+        date: res.date ?? active.date,
+        startTime: srvStart || active.startTime,
+        endTime: srvEnd || active.endTime
       });
-
-      this.showCriticalNotification('La reserva fue modificada por el administrador.', 'info', 4000);
+      this.showCriticalNotification('La reserva fue modificada por el administrador.', 'info', 5000);
     }
   }
 
-  /** Actualiza los datos visibles y guardados de la reserva activa */
-  updateActiveReservation(updated: Partial<{
-    courtName: string;
-    startTime: string;
-    endTime: string;
-  }>) {
-    if (!this.activeReservation) return;
+  // -------------------- PUBLIC API --------------------
 
-    this.activeReservation = { ...this.activeReservation, ...updated };
+  public checkServerForPendingReservations() {
+      if (!this.globalPollingSub) this.startGlobalPolling();
+      const email = this.auth.getUserEmail();
+      if(email) this.checkForNewOrReactivatedReservations();
+  }
+
+  startPendingReservation(
+    id: string, 
+    code: string, 
+    date: string,
+    courtName: string, 
+    startTime: string, 
+    endTime: string,
+    serverCreatedAt?: string 
+  ) {
+    const currentUserEmail = this.auth.getUserEmail();
+    if (!currentUserEmail) return;
+
+    if (this.activeReservation && this.activeReservation.reservationId === id) {
+       if (!this.snackRef) this.showNotificationFromState();
+       return; 
+    }
+
+    let expireAt: number;
+    if (serverCreatedAt) {
+      const createdTime = new Date(serverCreatedAt).getTime();
+      expireAt = createdTime + (3 * 60 * 1000);
+    } else {
+      expireAt = Date.now() + (3 * 60 * 1000);
+    }
+
+    if (expireAt <= Date.now()) return;
+
+    const saved = this.safeGetItem('activeReservation');
+    let originalExpireAt = expireAt;
+    let extended = false;
+    let reactivated = false;
+
+    if (saved) {
+      try {
+        const parsed: PendingData = JSON.parse(saved);
+        if (parsed.userEmail === currentUserEmail && parsed.reservationId === id) {
+            extended = parsed.extended;
+            reactivated = parsed.reactivated ?? false;
+            if (parsed.expireAt > Date.now()) {
+                expireAt = parsed.expireAt;
+            }
+        }
+      } catch {}
+    }
+
+    this.activeReservation = {
+      userEmail: currentUserEmail,
+      reservationId: id,
+      reservationCode: code,
+      date,
+      courtName,
+      startTime,
+      endTime,
+      expireAt,
+      originalExpireAt, 
+      extended,
+      reactivated
+    };
+
+    this.saveState();
+    this.showNotificationFromState();
+    this.setAutoCancelTimer(expireAt - Date.now());
+    this.ngZone.run(() => this.reservationStarted.next());
+  }
+
+  reactivateReservation() {
+    if (!this.activeReservation) return;
+    if (this.activeReservation.reactivated) return;
+
+    const duration = 3 * 60 * 1000;
+    this.activeReservation.expireAt = Date.now() + duration;
+    this.activeReservation.originalExpireAt = this.activeReservation.expireAt;
+    this.activeReservation.reactivated = true;
+    this.activeReservation.extended = false;
+    this.activeReservation.userEmail = this.auth.getUserEmail();
+
     this.saveState();
 
-    // Actualiza el snackbar dinámicamente
-    if (this.snackRef?.instance) {
-      this.snackRef.instance.updateData(
-        this.activeReservation.courtName,
-        this.activeReservation.startTime,
-        this.activeReservation.endTime
-      );
-    }
-
-    this.updateSnackbar(); // refresca contador y UI
-  }
-
-  private setAutoCancelTimer(durationMs: number) {
-    this.autoCancelSub?.unsubscribe();
-    this.autoCancelSub = timer(durationMs).subscribe(() => {
-      if (this.activeReservation && !this.isCancelling && Date.now() >= this.activeReservation.expireAt) {
-        this.cancelReservation(true);
-      }
+    this.ngZone.run(() => {
+        this.updateSnackbarUI();
+        this.setAutoCancelTimer(duration);
+        this.reactivatedService.emitReactivation(this.activeReservation!.reservationId);
+        this.showCriticalNotification('Reserva reactivada. Tienes 3 minutos.', 'warning', 5000);
     });
   }
 
-  // Ajuste en finalizeCancellation (ya tienes todo listo)
-  private finalizeCancellation(auto: boolean, reason: 'auto' | 'manual' | 'admin' | 'server' = 'auto') {
-    this.ngZone.run(() => {
-      this.clearAllTimers();
-      this.dismissSnackbar();
-      if (this.activeReservation) {
-        this.reservationCancelled.next({
-          reservationId: this.activeReservation.reservationId,
-          reason: reason
-        });
+  extendTimeOnce(extraMinutes = 5) {
+    if (!this.activeReservation || this.activeReservation.extended || this.isCancelling) {
+      if(this.activeReservation?.extended) this.notificationService.show('Ya se extendió una vez.', 'warning', 4000);
+      return;
+    }
+    const extraMs = extraMinutes * 60 * 1000;
+    this.activeReservation.expireAt = Date.now() + Math.max(0, this.activeReservation.expireAt - Date.now()) + extraMs;
+    this.activeReservation.extended = true;
+    this.saveState();
+    this.resetTimersAndSnackbar(this.activeReservation.expireAt - Date.now());
+    this.notificationService.show('Tiempo extendido por intento de pago.', 'warning', 5000);
+  }
+  
+  onPaymentAttempt() { this.extendTimeOnce(5); }
 
-        switch(reason) {
-          case 'admin':
-            this.notificationService.show('Tu reserva fue cancelada por el administrador.', 'error', 4000);
-            break;
-          case 'server':
-            this.notificationService.show('Tu reserva ya fue confirmada en el servidor.', 'success', 4000);
-            break;
-          case 'manual':
-            this.notificationService.show('Cancelaste la reserva manualmente.', 'warning', 3000);
-            break;
-          case 'auto':
-          default:
-            this.notificationService.show('Tu reserva pendiente ha expirado automáticamente.', 'error', 4000);
-            break;
+  cancelReservation(auto = false) {
+    if (!this.activeReservation || this.isCancelling) return;
+    this.isCancelling = true;
+    const id = this.activeReservation.reservationId;
+
+    this.reservationService.cancelReservation(id).pipe(take(1)).subscribe({
+        next: (res) => {
+          if (res?.status === 'CONFIRMED') {
+             this.notificationService.show('La reserva ya fue confirmada.', 'warning', 4000);
+             this.finalizeCancellation(auto, 'manual', false); 
+          } else {
+             this.finalizeCancellation(auto, auto ? 'auto' : 'manual');
+          }
+        },
+        error: () => {
+          this.notificationService.show('Error al cancelar la reserva.', 'error', 4000);
+          this.finalizeCancellation(auto, auto ? 'auto' : 'manual', false);
         }
-      }
+      });
+  }
+
+  private finalizeCancellation(auto: boolean, reason: 'auto' | 'manual' | 'admin' | 'server', showMessage = true) {
+    if (!this.activeReservation) return;
+    const reservationId = this.activeReservation.reservationId;
+
+    this.ngZone.run(() => {
+      this.clearAllTimers(); 
+      this.dismissSnackbar();
+      this.reservationCancelled.next({ reservationId, reason });
       this.safeRemoveItem('activeReservation');
       this.activeReservation = null;
       this.isCancelling = false;
+
+      if (showMessage) {
+        switch(reason) {
+          case 'admin': this.showCriticalNotification('Cancelada por administrador.', 'error', 5000); break;
+          case 'server': this.showCriticalNotification('Reserva confirmada.', 'success', 5000); break;
+          case 'manual': this.showCriticalNotification('Reserva cancelada.', 'warning', 3000); break;
+          default: this.showCriticalNotification('Tiempo expirado.', 'error', 5000); break;
+        }
+      }
     });
   }
 
-  // -------------------- SNACKBAR CONTROL --------------------
+  // -------------------- UTILS & SNACKBAR --------------------
 
-  private showNotification(court: string, start: string, end: string, durationMs: number) {
+  private showNotificationFromState() {
+      if (!this.activeReservation) return;
+      const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
+      this.showNotification(
+          this.activeReservation.courtName, 
+          this.activeReservation.date,
+          this.activeReservation.startTime, 
+          this.activeReservation.endTime, 
+          remaining
+      );
+  }
+
+  private showNotification(court: string, date: string, start: string, end: string, durationMs: number) {
     if (!this.activeReservation) return;
-
+    if (this.snackRef) {
+      this.updateSnackbarUI();
+      this.startUiInterval();
+      return;
+    }
     const data: PendingSnackbarData = {
       reservationId: this.activeReservation.reservationId,
       reservationCode: this.activeReservation.reservationCode,
       courtName: court,
+      date: date,
       startTime: start, 
-      endTime: end,     
+      endTime: end, 
       expireAt: this.activeReservation.expireAt
     };
-
     this.snackRef = this.snackBar.openFromComponent(ReservationPendingSnackbarComponent, {
-      data,
-      horizontalPosition: 'end',
-      verticalPosition: 'bottom',
-      panelClass: ['reservation-card-snackbar'],
-      duration: undefined
+      data, horizontalPosition: 'end', verticalPosition: 'bottom', panelClass: ['reservation-card-snackbar'], duration: undefined
     });
-
-    this.snackRef.instance.cancelClicked.subscribe(() => {
-      this.ngZone.run(() => this.router.navigate(['/cliente/mis-reservas']));
-    });
-
+    this.snackRef.instance.cancelClicked.subscribe(() => this.ngZone.run(() => this.router.navigate(['/cliente/mis-reservas'])));
+    this.snackRef.afterDismissed().pipe(take(1)).subscribe(() => { this.snackRef = null; this.stopUiInterval(); });
     this.startUiInterval();
+  }
+
+  public updateActiveReservation(updated: any) {
+      if (!this.activeReservation) return;
+      this.activeReservation = { ...this.activeReservation, ...updated };
+      this.saveState();
+      this.updateSnackbarUI();
+  }
+
+  private updateSnackbarUI() {
+      if (this.snackRef?.instance && this.activeReservation) {
+          this.snackRef.instance.updateData(
+            this.activeReservation.courtName,
+            this.activeReservation.date,
+            this.activeReservation.startTime,
+            this.activeReservation.endTime,
+            this.activeReservation.expireAt
+          );
+          const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
+          this.snackRef.instance.updateRemaining(remaining);
+      }
+      this.updateSnackbar(); 
   }
 
   private resetTimersAndSnackbar(durationMs: number) {
     this.clearAllTimers();
-    this.dismissSnackbar();
     if (!this.activeReservation) return;
     this.activeReservation.expireAt = Date.now() + durationMs;
     this.saveState();
-    this.showNotification(
-      this.activeReservation.courtName,
-      this.activeReservation.startTime,
-      this.activeReservation.endTime,
-      durationMs
-    );
+    this.showNotificationFromState();
     this.setAutoCancelTimer(durationMs);
-    this.startBackendPolling();
+  }
+
+  private setAutoCancelTimer(durationMs: number) {
+    this.autoCancelSub?.unsubscribe();
+    this.autoCancelSub = timer(Math.max(0, durationMs)).subscribe(() => {
+      if (this.activeReservation && !this.isCancelling && Date.now() >= this.activeReservation.expireAt) {
+        this.ngZone.run(() => this.cancelReservation(true));
+      }
+    });
   }
 
   private startUiInterval() {
     this.stopUiInterval();
-
-    this.uiIntervalId = setInterval(() => {
-      if (!this.activeReservation || !this.snackRef) {
-        this.stopUiInterval();
-        return;
-      }
-
-      const remaining = this.activeReservation.expireAt - Date.now();
-
-      this.ngZone.run(() => this.updateSnackbar());
-
-      if (remaining <= 0) {
-        this.ngZone.run(() => {
-          this.showCriticalNotification(
-            'Tu reserva pendiente ha expirado automáticamente.',
-            'error',
-            4000
-          );
-          this.finalizeReservationAfterTimeout();
-        });
-      }
-    }, this.uiIntervalMs);
-  }
-
-  private finalizeReservationAfterTimeout() {
-    if (!this.activeReservation) return; 
-
-    this.clearAllTimers();
-    this.dismissSnackbar();
-
-    this.reservationCancelled.next({
-      reservationId: this.activeReservation.reservationId,
-      reason: 'auto'
+    this.ngZone.runOutsideAngular(() => {
+        this.uiIntervalId = setInterval(() => {
+            const remaining = this.activeReservation ? (this.activeReservation.expireAt - Date.now()) : 0;
+            
+            if (this.snackRef && this.snackRef.instance) {
+                this.ngZone.run(() => {
+                   if (!this.activeReservation || !this.snackRef) { this.stopUiInterval(); return; }
+                   this.snackRef.instance.updateRemaining(Math.max(0, remaining));
+                   if (remaining <= 0) this.stopUiInterval();
+                });
+            } else if (remaining <= 0) {
+                 this.ngZone.run(() => this.stopUiInterval());
+            }
+        }, this.uiIntervalMs);
     });
-
-    this.activeReservation = null;
-    this.isCancelling = false;
-    this.safeRemoveItem('activeReservation');
   }
-
+  
   private updateSnackbar() {
-    if (!this.activeReservation || !this.snackRef) return;
-    const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
-    this.snackRef.instance.updateRemaining(remaining);
+      if (!this.activeReservation || !this.snackRef) return;
+      const remaining = Math.max(0, this.activeReservation.expireAt - Date.now());
+      this.snackRef.instance.updateRemaining(remaining);
   }
 
   private dismissSnackbar() {
@@ -487,87 +509,19 @@ export class ReservationPendingService implements OnDestroy {
     this.stopUiInterval();
   }
 
-  private stopUiInterval() {
-    if (this.uiIntervalId) {
-      clearInterval(this.uiIntervalId);
-      this.uiIntervalId = null;
-    }
+  private stopUiInterval() { if (this.uiIntervalId) { clearInterval(this.uiIntervalId); this.uiIntervalId = null; } }
+  
+  private clearAllTimers() { 
+      this.autoCancelSub?.unsubscribe(); 
+      this.stopUiInterval(); 
   }
 
-  private clearAllTimers() {
-    this.autoCancelSub?.unsubscribe();
-    this.backendCheckSub?.unsubscribe();
-    this.stopUiInterval();
-  }
-
-  // -------------------- PERSISTENCIA --------------------
-
-  private isBrowser(): boolean {
-    return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
-  }
-
-  private safeGetItem(key: string): string | null {
-    if (!this.isBrowser()) return null;
-    try { return localStorage.getItem(key); } catch { return null; }
-  }
-
-  private safeSetItem(key: string, value: string) {
-    if (!this.isBrowser()) return;
-    try { localStorage.setItem(key, value); } catch { console.warn('No se pudo guardar el estado local'); }
-  }
-
-  private safeRemoveItem(key: string) {
-    if (!this.isBrowser()) return;
-    try { localStorage.removeItem(key); } catch {}
-  }
-
-  private saveState() {
-    if (!this.activeReservation) {
-      this.safeRemoveItem('activeReservation');
-      return;
-    }
-    try { this.safeSetItem('activeReservation', JSON.stringify(this.activeReservation)); } catch { }
-  }
-
-  private restorePreviousState() {
-    if (!this.isBrowser() || this.snackRef) return;
-
-    const saved = this.safeGetItem('activeReservation');
-    if (!saved) return;
-
-    // Aquí puedes verificar si el usuario sigue logueado
-    if (!this.isUserLoggedIn()) return;
-
-    try {
-      const parsed: PendingData = JSON.parse(saved);
-
-      this.http.get<{ status: string }>(`http://localhost:8080/api/reservations/${parsed.reservationId}/status`)
-        .pipe(take(1))
-        .subscribe({
-          next: (res) => {
-            if (res.status === 'PENDING' || res.status === 'REACTIVATED') {
-              const remaining = parsed.expireAt - Date.now();
-              if (remaining > 0) {
-                this.activeReservation = parsed;
-                this.showNotification(parsed.courtName, parsed.startTime, parsed.endTime, remaining);
-                this.setAutoCancelTimer(remaining);
-                this.startBackendPolling();
-              } else {
-                this.activeReservation = parsed;
-                this.cancelReservation(true);
-              }
-            } else {
-              this.notificationService.show('Reserva ya confirmada o cancelada. Limpiando estado local.', 'error', 4000);
-              this.closeLocalReservation();
-            }
-          },
-          error: () => this.closeLocalReservation()
-        });
-    } catch { this.safeRemoveItem('activeReservation'); }
-  }
-
-  // -------------------- NOTIFICACIONES CRÍTICAS --------------------
-
+  private isBrowser() { return typeof window !== 'undefined' && typeof localStorage !== 'undefined'; }
+  private safeGetItem(key: string) { if(!this.isBrowser()) return null; try { return localStorage.getItem(key); } catch { return null; } }
+  private safeSetItem(key: string, value: string) { if(!this.isBrowser()) return; try { localStorage.setItem(key, value); } catch { } }
+  private safeRemoveItem(key: string) { if(!this.isBrowser()) return; try { localStorage.removeItem(key); } catch { } }
+  private saveState() { if(!this.activeReservation) return; try { this.safeSetItem('activeReservation', JSON.stringify(this.activeReservation)); } catch { } }
+  
   private showCriticalNotification(msg: string, type: 'success'|'warning'|'error'|'info', duration = 4000) {
     if (this.lastCriticalMessage === msg) return;
     this.lastCriticalMessage = msg;
@@ -575,23 +529,32 @@ export class ReservationPendingService implements OnDestroy {
     setTimeout(() => { this.lastCriticalMessage = null; }, duration);
   }
 
-  ngOnDestroy(): void {
-    this.clearAllTimers();
+  private formatTime(timeArr: any): string {
+      if (Array.isArray(timeArr)) return `${timeArr[0]}:${timeArr[1].toString().padStart(2, '0')}`;
+      return timeArr || '';
   }
 
-  private isUserLoggedIn(): boolean {
-    return !!this.auth.isLogged();
+  ngOnDestroy(): void { 
+    this.stopGlobalPolling(); 
+    this.clearAllTimers(); 
   }
 
-  /** Limpia todo estado de reservas pendiente al cerrar sesión */
-  logoutAndClearReservation() {
-    // Cancela temporizadores, polling y UI
+  clearActiveReservationInMemory() {
     this.clearAllTimers();
     this.dismissSnackbar();
-
-    // Limpia estado activo y localStorage
     this.activeReservation = null;
     this.isCancelling = false;
-    this.safeRemoveItem('activeReservation');
   }
+
+  logoutAndClearReservation() { 
+      this.stopGlobalPolling();
+      this.clearActiveReservationInMemory(); 
+  }
+  
+  forceCloseReservation() { this.clearActiveReservationInMemory(); this.safeRemoveItem('activeReservation'); }
+  revertExtension() { if(!this.activeReservation) return; this.activeReservation.expireAt = this.activeReservation.originalExpireAt; this.activeReservation.extended = false; this.saveState(); this.updateSnackbarUI(); }
+  closeLocalReservation() { this.clearActiveReservationInMemory(); this.safeRemoveItem('activeReservation'); }
+  getRemainingTime(id: string): number | null { return this.activeReservation?.reservationId === id ? Math.max(0, this.activeReservation.expireAt - Date.now()) : null; }
+  hasActiveReservation() { return !!this.activeReservation; }
+  getActiveReservation() { return this.activeReservation; }
 }

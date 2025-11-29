@@ -1,0 +1,294 @@
+/* === LAYOUT DEL DASHBOARD (Copiado de Admin) === */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+  top: 0;
+  background: #f4f4f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+
+  .side-panel {
+    width: 250px;
+    background: linear-gradient(180deg, #1f1f1f, #2d2d2d);
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.4s ease-in-out, padding 0.3s ease-in-out;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0; /* Evita que se encoja */
+
+    &.closed {
+      width: 70px;
+
+      h2, .user-info, nav span, .logout-btn span {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+      }
+      nav a, .logout-btn {
+        justify-content: center;
+      }
+    }
+
+    /* Hover effect solo si quieres que se expanda al pasar el mouse
+    &:hover {
+      width: 250px; 
+      ... (lógica opcional si usas hover)
+    }
+    */
+
+    .toggle-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.3s ease-in-out;
+      z-index: 10;
+      
+      &:hover { color: #ff4b4b; transform: scale(1.1); }
+    }
+
+    h2 { margin-top: 1rem; font-size: 1.2rem; white-space: nowrap; }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 2rem;
+
+      a {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: #ddd;
+        text-decoration: none;
+        padding: 0.7rem 1rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        white-space: nowrap;
+        transition: background 0.3s, transform 0.2s;
+        min-height: 40px;
+
+        i { font-size: 1.2rem; min-width: 24px; text-align: center; }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateX(5px);
+        }
+
+        &.active, &.active-link {
+          background: rgba(255, 255, 255, 0.2);
+          font-weight: bold;
+          color: #fff;
+        }
+      }
+    }
+
+    .user-info {
+      margin-top: auto;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+
+      p { margin: 0.2rem 0; &:first-child { font-weight: bold; color: #fff; } }
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: 1rem;
+      padding: 0.7rem;
+      background: #ff4b4b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.3s;
+
+      &:hover { background: #e63939; }
+    }
+  }
+
+  .hidden { display: none !important; }
+
+  /* Contenedor Principal (Main) */
+  main {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    position: relative;
+    width: 100%;
+  }
+}
+
+/* === ESTILOS ESPECÍFICOS DEL PERFIL === */
+.profile-container {
+  max-width: 800px;
+  margin: 0 auto;
+  
+  .profile-header {
+    margin-bottom: 2rem;
+    text-align: center;
+    h1 { font-size: 2rem; color: #333; margin-bottom: 0.5rem; }
+    p { color: #666; }
+  }
+}
+
+.profile-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  min-width: 150px;
+
+  .avatar-circle {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: white;
+    box-shadow: 0 4px 10px rgba(118, 75, 162, 0.4);
+  }
+
+  .role-badge {
+    background: #f0f0f0;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+  }
+}
+
+.profile-form {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  &.two-cols {
+    @media (min-width: 600px) {
+      flex-direction: row;
+      .form-group { flex: 1; }
+    }
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label { font-weight: 600; color: #444; font-size: 0.9rem; }
+
+  input {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+
+    &:focus {
+      border-color: #764ba2;
+      box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
+      outline: none;
+    }
+
+    &.input-disabled {
+      background-color: #f9f9f9;
+      color: #888;
+      cursor: not-allowed;
+    }
+  }
+  .hint { font-size: 0.8rem; color: #999; }
+}
+
+.form-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+
+  .save-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.8rem 2rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(118, 75, 162, 0.3);
+    }
+    &:disabled { opacity: 0.7; cursor: wait; }
+  }
+}
+
+.loading-state {
+  text-align: center;
+  padding: 3rem;
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #f3f3f3; border-top: 4px solid #764ba2;
+    border-radius: 50%; margin: 0 auto 1rem;
+    animation: spin 1s linear infinite;
+  }
+  p { color: #666; }
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.fade-in { animation: fadeIn 0.4s ease-in; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

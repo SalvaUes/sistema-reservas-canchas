@@ -1,53 +1,8 @@
-<!-- Contenido principal -->
 <div class="dashboard">
-  <!-- Panel lateral -->
-  <aside
-    class="side-panel"
-    [class.closed]="isSidePanelClosed"
-    (mouseenter)="hoverPanel(true)"
-    (mouseleave)="hoverPanel(false)"
-  >
-    <button class="toggle-btn" (click)="toggleSidePanel()">
-      {{ isSidePanelClosed ? '☰' : '✕' }}
-    </button>
-    <h2 *ngIf="!isSidePanelClosed">Panel Admin</h2>
-
-    <nav>
-      <a routerLink="/admin" routerLinkActive="active">
-        <i class="fas fa-home"></i>
-        <span *ngIf="!isSidePanelClosed">Inicio</span>
-      </a>
-      <a routerLink="/admin/usuarios" routerLinkActive="active">
-        <i class="fas fa-users"></i>
-        <span *ngIf="!isSidePanelClosed">Usuarios</span>
-      </a>
-      <a routerLink="/admin/canchas" routerLinkActive="active">
-        <i class="fas fa-futbol"></i>
-        <span *ngIf="!isSidePanelClosed">Canchas</span>
-      </a>
-      <a routerLink="/admin/reservas" routerLinkActive="active">
-        <i class="fas fa-calendar-check"></i>
-        <span *ngIf="!isSidePanelClosed">Reservas</span>
-      </a>
-    </nav>
-
-    <div class="user-info" *ngIf="!isSidePanelClosed">
-      <p>{{ userEmail }}</p>
-      <p>{{ userRole }}</p>
-    </div>
-
-    <button class="logout-btn" (click)="logout()">
-      <i class="fas fa-sign-out-alt"></i>
-      <span *ngIf="!isSidePanelClosed">Cerrar sesión</span>
-    </button>
-  </aside>
-
-  <!-- Contenido principal -->
-  <main [class.closed]="isSidePanelClosed">
+  <main>
     <section class="reservas-section">
       <h1>Reservaciones</h1>
 
-      <!-- 🔍 Buscador y filtro por estado -->
       <div class="reservas-toolbar">
         <div class="search-box">
           <input
@@ -77,22 +32,17 @@
         </div>
       </div>
 
-      <!-- Modal formulario de edición -->
       <div
         class="modal-backdrop"
         *ngIf="showForm"
         (click)="cancelForm()"
       >
         <div class="modal" (click)="$event.stopPropagation()">
-          <h2>{{ editMode ? 'Editar Reservación' : 'Crear Reservación' }}</h2>
+          <h2>Editar Reservación</h2>
 
           <div class="form-group">
-            <label>Usuario*:</label>
-            <select [(ngModel)]="userId">
-              <option *ngFor="let user of users" [value]="user.id">
-                {{ user.firstName }} {{ user.lastName }} ({{ user.email }})
-              </option>
-            </select>
+            <label>Usuario (Solo lectura):</label>
+            <input type="text" [value]="currentUserFullName" disabled class="form-control" />
           </div>
 
           <div class="form-group">
@@ -133,19 +83,14 @@
             />
           </div>
 
-          <p>Hora inicio 24h: {{ startTime }}</p>
-          <p>Hora fin 24h: {{ endTime }}</p>
-
           <div class="form-actions">
-            <button (click)="submitForm()">{{ editMode ? 'Guardar Cambios' : 'Crear' }}</button>
+            <button (click)="submitForm()">Guardar Cambios</button>
             <button type="button" (click)="cancelForm()">Cancelar</button>
           </div>
         </div>
       </div>
 
-      <!-- Contenedor de selección global y acciones masivas -->
       <div class="reservas-toolbar">
-        <!-- Checkbox global -->
         <div class="select-global">
           <label class="checkbox-label">
             <input
@@ -157,7 +102,6 @@
           </label>
         </div>
 
-        <!-- Acciones masivas -->
         <div
           class="bulk-actions"
           *ngIf="selectedCount > 0"
@@ -184,7 +128,6 @@
 
       <p></p>
 
-      <!-- Tabla de reservaciones -->
       <div class="table-container">
         <table class="usuarios-table">
           <thead>
@@ -197,12 +140,16 @@
               <th>Cancha</th>
               <th (click)="toggleSortByDate()" style="cursor:pointer;">
                 Fecha
-                <span *ngIf="sortDirection==='asc'">▲</span>
-                <span *ngIf="sortDirection==='desc'">▼</span>
+                <span *ngIf="sortColumn === 'date' && sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortColumn === 'date' && sortDirection === 'desc'">▼</span>
               </th>
               <th>Inicio</th>
               <th>Fin</th>
-              <th>Estado</th>
+              <th (click)="toggleSortByStatus()" style="cursor:pointer;">
+                Estado
+                <span *ngIf="sortColumn === 'status' && sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortColumn === 'status' && sortDirection === 'desc'">▼</span>
+              </th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -223,10 +170,12 @@
               <td>{{ res.date | date:'yyyy-MM-dd' }}</td>
               <td>{{ res.startTime }}</td>
               <td>{{ res.endTime }}</td>
-              <td [class]="res.status.toLowerCase()">{{ translateReservationStatus(res.status) }}</td>
+              
+              <td [class]="res.status.toLowerCase()">{{ formatStatusWithTimer(res) }}</td>
+              
               <td class="acciones">
                 <button class="edit-btn"
-                        (click)="openForm(true,res)"
+                        (click)="openForm(res)"
                         [disabled]="res.status==='CANCELLED' || res.status==='FINISHED' || res.status==='CONFIRMED'"
                         [matTooltip]="
                           res.status==='CANCELLED' ? 'No se puede editar: cancelada' :
@@ -245,7 +194,6 @@
                   🗑️ Cancelar
                 </button>
 
-                <!-- Botón Reactivar -->
                 <button class="reactivate-btn"
                         (click)="reactivateReservation(res)"
                         [disabled]="!canReactivate(res)"
@@ -253,8 +201,7 @@
                   ♻️ Reactivar
                 </button>
 
-                <!-- Botón Eliminar (solo si se puede) -->
-                <button *ngIf="canDeleteCancelled(res)"
+                <button *ngIf="canDeleteReservation(res)"
                         class="delete-btn"
                         (click)="deleteReservation(res)"
                         [matTooltip]="getDeleteTooltip(res)">
@@ -275,7 +222,6 @@
 
         <p>{{ selectedCount }} reserva(s) seleccionada(s)</p>
 
-        <!-- Paginación -->
         <div class="pagination" *ngIf="totalPages > 1">
           <button (click)="previousPage()" [disabled]="currentPage === 1">⬅ Anterior</button>
           <span>Página {{ currentPage }} de {{ totalPages }}</span>

@@ -6,6 +6,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+// 💡 1. Importar environment
+import { environment } from '../../../../environments/environment';
 
 export interface PaymentFormData {
   reservationId: string;       // UUID
@@ -97,8 +99,9 @@ export class PaymentFormDialogComponent implements OnInit {
 
   ngOnInit() {
     if (this.data.reservationId) {
+      // 💡 2. Usar variable de entorno
       this.http.get<ReservationDTO>(
-        `http://localhost:8080/api/reservations/${this.data.reservationId}`
+        `${environment.apiUrl}/reservations/${this.data.reservationId}`
       ).subscribe({
         next: res => {
           this.id = res.id;

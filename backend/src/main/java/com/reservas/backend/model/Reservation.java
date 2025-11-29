@@ -1,7 +1,9 @@
 package com.reservas.backend.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime; // 💡 Importar
 import java.time.LocalTime;
+import java.time.ZoneId; // 💡 Importar
 import java.util.Objects;
 import java.util.UUID;
 
@@ -38,6 +40,10 @@ public class Reservation {
 
     private String status = "PENDING"; // "PENDING", "CONFIRMED", "CANCELLED"
 
+    // 💡 NUEVO: Hora exacta de creación para el temporizador de 3 minutos
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -63,6 +69,10 @@ public class Reservation {
         }
         if (this.code == null) {
             this.code = "R-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(); // Código legible
+        }
+        // 💡 Asignar hora actual al crear (Zona El Salvador)
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now(ZoneId.of("America/El_Salvador"));
         }
     }
 
@@ -90,6 +100,10 @@ public class Reservation {
 
     public Court getCourt() { return court; }
     public void setCourt(Court court) { this.court = court; }
+
+    // 💡 Getter/Setter para createdAt
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     @Override
     public boolean equals(Object o) {

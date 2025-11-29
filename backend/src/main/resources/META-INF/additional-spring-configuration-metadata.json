@@ -1,5 +1,47 @@
-{"properties": [{
-  "name": "spring.datasource.time-zone",
-  "type": "java.lang.String",
-  "description": "A description for 'spring.datasource.time-zone'"
-}]}
+{"properties": [
+  {
+    "name": "app.cors.allowed-origins",
+    "type": "java.lang.String",
+    "description": "A description for 'app.cors.allowed-origins'"
+  },
+  {
+    "name": "spring.datasource.time-zone",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.time-zone'"
+  },
+  {
+    "name": "auth0.domain",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.domain'"
+  },
+  {
+    "name": "auth0.management.client-id",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.management.client-id'"
+  },
+  {
+    "name": "auth0.management.client-secret",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.management.client-secret'"
+  },
+  {
+    "name": "auth0.roles.admin-id",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.roles.admin-id'"
+  },
+  {
+    "name": "auth0.roles.client-id",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.roles.client-id'"
+  },
+  {
+    "name": "spring.security.oauth2.resourceserver.jwt.audience",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.security.oauth2.resourceserver.jwt.audience'"
+  },
+  {
+    "name": "auth0.claims.roles",
+    "type": "java.lang.String",
+    "description": "A description for 'auth0.claims.roles'"
+  }
+]}

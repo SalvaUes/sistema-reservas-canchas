@@ -20,7 +20,7 @@ public class ReservationDetailDTO {
 
     private final BigDecimal pricePerHour;
     private final BigDecimal totalPrice;
-    private final LocalDate date; // opcional si quieres combinar con UTC
+    private final LocalDate date; 
 
     public ReservationDetailDTO(String courtName, LocalDate date, LocalTime startTime, LocalTime endTime, BigDecimal pricePerHour) {
         this.courtName = courtName;

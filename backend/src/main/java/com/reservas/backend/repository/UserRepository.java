@@ -10,4 +10,5 @@ import com.reservas.backend.model.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+    Optional<User> findByAuth0Id(String auth0Id);
 }

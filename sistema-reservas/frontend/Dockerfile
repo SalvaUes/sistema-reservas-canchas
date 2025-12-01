@@ -1,33 +1,31 @@
 # ================================
-# Etapa 1: Build del frontend
+# Etapa 1: Build y Dependencias
 # ================================
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copiar los archivos de definición de dependencias
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
+# 1. Copiar archivos de definición de dependencias
+COPY package*.json ./ 
 
-# Copiar todo el código fuente
+# 2. Instalar dependencias (usando --legacy-peer-deps)
+RUN npm ci --legacy-peer-deps
+
+# 3. Copiar el código fuente
 COPY . .
 
-# Ejecutar el build de Angular en configuración de producción
-RUN npx ng build --configuration production
-
 # ================================
-# Etapa 2: Servir con Nginx
+# Etapa 2: Runtime (Desarrollo)
 # ================================
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Copiar los archivos generados a la carpeta de Nginx
-COPY --from=builder /app/dist/frontend /usr/share/nginx/html
+WORKDIR /app
 
-# Copiar el archivo nginx.conf desde el mismo directorio que el Dockerfile
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copiar TODO (código + node_modules) desde la etapa de build
+COPY --from=builder /app /app
 
-# Exponer el puerto adecuado (por defecto, Nginx usa el puerto 80)
-EXPOSE 80
+# Exponer el puerto de la aplicación (4200 para Angular)
+EXPOSE 4200
 
-# Ejecutar Nginx en primer plano
-CMD ["nginx", "-g", "daemon off;"]
+# Ejecutamos el binario local de Angular CLI
+CMD ["./node_modules/.bin/ng", "serve", "--host", "0.0.0.0", "--port", "4200"]

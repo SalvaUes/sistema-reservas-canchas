@@ -2,8 +2,8 @@ import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { RouterModule } from '@angular/router';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterModule } from '@angular/router'; // Importante para el menú
+import { MatTooltipModule } from '@angular/material/tooltip'; // Importante para tooltips
 import { NotificationService } from '../shared/notificaciones/notification.service';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../environments/environment';
@@ -31,6 +31,11 @@ export class ProfileComponent implements OnInit {
   isLoading = true;
   isSaving = false;
 
+  // Lógica del Panel Lateral
+  userEmail = '';
+  userRole = '';
+
+  // Form Model
   firstName = '';
   lastName = '';
   phoneNumber = '';
@@ -40,63 +45,54 @@ export class ProfileComponent implements OnInit {
 
   constructor(
     private http: HttpClient,
-    public auth: AuthService,
+    public auth: AuthService, 
     private notify: NotificationService,
     private cdr: ChangeDetectorRef
-  ) {}
+  ) {
+    this.userEmail = this.auth.getUserEmail() || '';
+    this.userRole = this.auth.getUserRole() || '';
+  }
 
   ngOnInit() {
-    // Esperar a que Auth0 tenga token antes de cargar usuario
-    this.auth.isAuthenticated$.subscribe(isAuth => {
-      if (isAuth) {
-        this.loadUserProfile();
-      } else {
-        this.isLoading = false;
-      }
-    });
+    this.loadUserProfile();
   }
 
   logout() {
-    this.auth.logout({ returnTo: window.location.origin });
+    this.auth.logout();
   }
 
-  private loadUserProfile() {
+  loadUserProfile() {
     this.isLoading = true;
+    const currentEmail = this.auth.getUserEmail();
 
-    // Obtener email del usuario desde Auth0
-    this.auth.user$.subscribe(profile => {
-      if (!profile?.email) {
-        this.notify.show('No se pudo identificar al usuario.', 'error');
-        this.isLoading = false;
-        return;
-      }
+    if (!currentEmail) {
+      this.notify.show('No se pudo identificar al usuario.', 'error');
+      this.isLoading = false;
+      return;
+    }
 
-      const currentEmail = profile.email;
-
-      // Llamada al backend con Auth0 HTTP interceptor (envía token automáticamente)
-      this.http.get<UserProfileDTO[]>(this.apiUrl).subscribe({
-        next: users => {
-          const found = users.find(u => u.email === currentEmail);
-          if (found) {
-            this.user = found;
-            this.populateForm(found);
-          } else {
-            this.notify.show('Usuario no encontrado.', 'error');
-          }
-          this.isLoading = false;
-          this.cdr.markForCheck();
-        },
-        error: err => {
-          console.error('Error backend:', err);
-          this.notify.show('Error al cargar perfil.', 'error');
-          this.isLoading = false;
-          this.cdr.markForCheck();
+    this.http.get<UserProfileDTO[]>(this.apiUrl).subscribe({
+      next: (users) => {
+        const found = users.find(u => u.email === currentEmail);
+        if (found) {
+          this.user = found;
+          this.populateForm(found);
+        } else {
+          this.notify.show('Usuario no encontrado.', 'error');
         }
-      });
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error(err);
+        this.notify.show('Error al cargar perfil.', 'error');
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }
     });
   }
 
-  private populateForm(user: UserProfileDTO) {
+  populateForm(user: UserProfileDTO) {
     this.firstName = user.firstName;
     this.lastName = user.lastName;
     this.email = user.email;
@@ -117,7 +113,7 @@ export class ProfileComponent implements OnInit {
       firstName: this.firstName,
       lastName: this.lastName,
       phoneNumber: this.phoneNumber,
-      roleName: this.user.role
+      roleName: this.user.role 
     };
 
     this.http.put(`${this.apiUrl}/${this.user.id}`, payload).subscribe({
@@ -131,7 +127,7 @@ export class ProfileComponent implements OnInit {
         }
         this.cdr.markForCheck();
       },
-      error: err => {
+      error: (err) => {
         const msg = err.error?.message || 'Error al guardar cambios.';
         this.notify.show(msg, 'error');
         this.isSaving = false;

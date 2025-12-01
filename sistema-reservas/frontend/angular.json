@@ -33,6 +33,7 @@
           },
           "configurations": {
             "production": {
+              "outputPath": "dist/frontend",
               "budgets": [
                 {
                   "type": "initial",
@@ -92,4 +93,5 @@
   "cli": {
     "analytics": "ded07d49-85ae-4e37-a0ea-ebfe0db95a6b"
   }
+
 }

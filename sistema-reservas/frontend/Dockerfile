@@ -27,9 +27,5 @@ COPY --from=builder /app /app
 # Exponer el puerto de la aplicación (4200 para Angular)
 EXPOSE 4200
 
-# Establecer un valor predeterminado para FRONTEND_PORT si no está configurado
-ENV FRONTEND_PORT=4200
-
-# Ejecutar ng serve usando FRONTEND_PORT
-CMD ["sh", "-c", "./node_modules/.bin/ng serve --host 0.0.0.0 --port $FRONTEND_PORT"]
-
+# ** Cambiar para escuchar en un puerto fijo en lugar de usar $PORT **
+CMD ["sh", "-c", "./node_modules/.bin/ng serve --host 0.0.0.0 --port 4200"]

@@ -28,4 +28,5 @@ COPY --from=builder /app /app
 EXPOSE 4200
 
 # Ejecutamos el binario local de Angular CLI
-CMD ["./node_modules/.bin/ng", "serve", "--host", "0.0.0.0", "--port", "4200"]
+CMD ["./node_modules/.bin/ng", "serve", "--host", "0.0.0.0", "--port", "$PORT"]
+

@@ -25,6 +25,7 @@ export const appConfig: ApplicationConfig = {
         scope: 'openid profile email offline_access read:reservations create:reservations update:reservations delete:reservations read:courts read:payments create:payments'
       },
       cacheLocation: 'localstorage',
+      useRefreshTokens: true,
       httpInterceptor: {
         allowedList: [`${environment.apiUrl}/*`]
       }
@@ -41,4 +42,5 @@ export const appConfig: ApplicationConfig = {
     provideNativeDateAdapter(),
     provideAnimations(),
   ]
+
 };

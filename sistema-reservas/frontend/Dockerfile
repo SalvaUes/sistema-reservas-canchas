@@ -5,27 +5,33 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 1. Copiar archivos de definición de dependencias
-COPY package*.json ./ 
+# Copiar archivos de dependencias
+COPY package*.json ./
 
-# 2. Instalar dependencias (usando --legacy-peer-deps)
+# Instalar dependencias
 RUN npm ci --legacy-peer-deps
 
-# 3. Copiar el código fuente
+# Copiar código fuente
 COPY . .
 
+# Build de Angular para producción
+RUN npm run build -- --configuration production
+
 # ================================
-# Etapa 2: Runtime (Desarrollo)
+# Etapa 2: Runtime (Producción / Desarrollo)
 # ================================
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar TODO (código + node_modules) desde la etapa de build
-COPY --from=builder /app /app
+# Instalar serve globalmente para producción
+RUN npm install -g serve
 
-# Exponer el puerto de la aplicación (4200 para Angular)
+# Copiar los archivos construidos
+COPY --from=builder /app/dist/frontend ./dist/frontend
+
+# Exponer puerto (opcional para documentación)
 EXPOSE 4200
 
-# ** Cambiar para escuchar en un puerto fijo en lugar de usar $PORT **
-CMD ["sh", "-c", "./node_modules/.bin/ng serve --host 0.0.0.0 --port 4200"]
+# CMD que usa PORT si existe (Render), si no usa 4200 para local
+CMD ["sh", "-c", "serve -s dist/frontend -l ${PORT:-4200}"]

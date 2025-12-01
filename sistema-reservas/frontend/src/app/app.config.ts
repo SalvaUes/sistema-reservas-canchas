@@ -27,7 +27,7 @@ export const appConfig: ApplicationConfig = {
       cacheLocation: 'localstorage',
       useRefreshTokens: true,
       httpInterceptor: {
-        allowedList: [`${environment.apiUrl}/*`]
+        allowedList: ['https://sistema-reservas-canchas-backend.onrender.com/api/*']
       }
     }),
 
@@ -44,3 +44,4 @@ export const appConfig: ApplicationConfig = {
   ]
 
 };
+

@@ -1,23 +1,34 @@
 # ================================
-# Etapa 1: Build del frontend
+# Etapa 1: Build y Dependencias
 # ================================
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# 1. Copiar archivos de definición de dependencias
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
 
+# 2. Instalar dependencias IGNORANDO conflictos de versiones
+# Usamos --legacy-peer-deps para solucionar el error ERESOLVE de Angular
+RUN npm ci --legacy-peer-deps
+
+# 3. Copiar el código fuente
 COPY . .
-RUN npm run build --prod
 
 # ================================
-# Etapa 2: Servir con Nginx
+# Etapa 2: Runtime (Desarrollo/Preview)
 # ================================
-FROM nginx:alpine
+FROM node:20-alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-EXPOSE 80
+# Copiar TODO (código + node_modules) desde la etapa de build
+COPY --from=builder /app /app
 
-CMD ["nginx", "-g", "daemon off;"]
+# NOTA: Usamos el binario local instalado en node_modules
+# Esto evita tener que instalar Angular CLI globalmente y ahorra espacio
+
+EXPOSE 4200
+
+# Ejecutamos el binario local directamente
+CMD ["./node_modules/.bin/ng", "serve", "--host", "0.0.0.0", "--port", "4200"]

@@ -2,8 +2,8 @@ export const environment = {
   production: false,
   
   // URL del Backend
-  apiUrl: 'http://localhost:8080/api',
-  socketUrl: 'ws://localhost:8080/ws',
+  apiUrl: 'https://sistema-reservas-canchas-backend.onrender.com',
+  socketUrl: 'wss://sistema-reservas-canchas-backend.onrender.com/ws',
 
   // Configuración de Auth0
   auth0: {

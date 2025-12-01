@@ -34,4 +34,5 @@ COPY --from=builder /app/dist/frontend ./dist/frontend
 EXPOSE 4200
 
 # CMD que usa PORT si existe (Render), si no usa 4200 para local
-CMD ["sh", "-c", "serve -s dist/frontend -l ${PORT:-4200}"]
+CMD ["sh", "-c", "serve -s dist/frontend -l ${PORT:-4200} -n"]
+

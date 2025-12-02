@@ -24,13 +24,9 @@ public class PaymentService {
     }
 
     private String generateReadableCode(UUID reservationId) {
-        // Toma los primeros 8 caracteres del UUID y agrega prefijo R-
         return "R-" + reservationId.toString().substring(0, 8).toUpperCase();
     }
 
-    /**
-     * Procesa un pago real de la reserva
-     */
     public InvoiceDTO processPayment(UUID reservationId, PaymentRequest request) {
         Reservation reservation = reservationRepo.findById(reservationId)
                 .orElseThrow(() -> new RuntimeException("Reserva no encontrada"));
@@ -46,7 +42,6 @@ public class PaymentService {
 
         payment.setStatus("CONFIRMED");
         payment.setPaymentDate(LocalDateTime.now());
-
         reservation.setStatus("CONFIRMED");
 
         reservationRepo.save(reservation);
@@ -64,14 +59,14 @@ public class PaymentService {
                 payment.getMethod().name(),
                 payment.getStatus(),
                 payment.getPaymentDate(),
-                reservationCode
+                reservationCode,
+                reservation.getCourt().getCode(),          // Código de la cancha
+                reservation.getCourt().getName(),          // Nombre de la cancha
+                reservation.getStartTime(),  // Inicio
+                reservation.getEndTime()     // Fin
         );
     }
 
-    /**
-     * Obtiene la factura de la reserva
-     * Lanza excepción si no existe pago
-     */
     public InvoiceDTO getInvoiceByReservation(UUID reservationId) {
         Payment payment = paymentRepo.findByReservationId(reservationId)
                 .orElseThrow(() -> new RuntimeException("Factura no encontrada para la reserva " + reservationId));
@@ -89,7 +84,11 @@ public class PaymentService {
                 payment.getMethod().name(),
                 payment.getStatus(),
                 payment.getPaymentDate(),
-                reservationCode
+                reservationCode,
+                reservation.getCourt().getCode(),          // Código de la cancha
+                reservation.getCourt().getName(),          // Nombre de la cancha
+                reservation.getStartTime(),  // Inicio
+                reservation.getEndTime()     // Fin
         );
     }
 }

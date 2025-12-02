@@ -1,17 +1,47 @@
-//app.config.ts
-import { ApplicationConfig, importProvidersFrom, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
-import { provideRouter } from '@angular/router';
-import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
-import { routes } from './app.routes';
-import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
+import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { provideRouter, withHashLocation } from '@angular/router';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+import { provideNativeDateAdapter } from '@angular/material/core';
+import { provideAnimations } from '@angular/platform-browser/animations';
 
+import { routes } from './app.routes';
+import { provideAuth0, authHttpInterceptorFn } from '@auth0/auth0-angular';
+import { environment } from '../environments/environment';
+
+import { authInterceptor } from './services/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideBrowserGlobalErrorListeners(),
-    provideZonelessChangeDetection(),
-    provideRouter(routes),
-    provideClientHydration(withEventReplay()),
-    importProvidersFrom(HttpClientModule),
+    provideZoneChangeDetection({ eventCoalescing: true }),
+
+    provideRouter(routes, withHashLocation()),
+
+    provideAuth0({
+      domain: environment.auth0.domain,
+      clientId: environment.auth0.clientId,
+      authorizationParams: {
+        redirect_uri: window.location.origin,
+        audience: environment.auth0.authorizationParams.audience,
+        scope: 'openid profile email offline_access read:reservations create:reservations update:reservations delete:reservations read:courts read:payments create:payments'
+      },
+      cacheLocation: 'localstorage',
+      useRefreshTokens: true,
+      httpInterceptor: {
+        allowedList: ['https://sistema-reservas-canchas-backend.onrender.com/api/*']
+      }
+    }),
+
+    provideHttpClient(
+      withFetch(),
+      withInterceptors([
+        authHttpInterceptorFn, 
+        authInterceptor        
+      ])
+    ),
+
+    provideNativeDateAdapter(),
+    provideAnimations(),
   ]
+
 };
+

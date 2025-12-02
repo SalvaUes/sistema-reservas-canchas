@@ -7,10 +7,10 @@
   <!-- Detalles de la reserva -->
   <div class="reservation-details">
     <h3>Detalles de la reserva</h3>
-    <p><strong>Codigo de reserva:</strong> {{ code || 'Cargando...'}}</p>
-    <p><strong>Cancha:</strong> {{ courtName || 'Cargando...' }}</p>
+    <p><strong>Código de reserva:</strong> {{ code || 'Cargando...' }}</p>
+    <p><strong>Cancha:</strong> {{ courtName || 'Cargando...' }} ({{ courtCode || '---' }})</p>
     <p><strong>Horario:</strong>
-      {{ startTime ? startTime + ' - ' + endTime : 'Cargando...' }}
+      {{ startTime ? (formatTo12Hour(startTime) + ' - ' + formatTo12Hour(endTime)) : 'Cargando...' }}
     </p>
     <p><strong>Precio por hora:</strong> ${{ pricePerHour }}</p>
     <p><strong>Total a pagar:</strong> ${{ totalPrice }}</p>

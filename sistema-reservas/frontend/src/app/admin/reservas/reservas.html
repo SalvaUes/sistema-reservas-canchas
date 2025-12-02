@@ -1,97 +1,48 @@
 <div class="dashboard">
-  <!-- Panel lateral -->
-  <aside
-    class="side-panel"
-    [class.closed]="isSidePanelClosed"
-    (mouseenter)="hoverPanel(true)"
-    (mouseleave)="hoverPanel(false)"
-  >
-    <button class="toggle-btn" (click)="toggleSidePanel()">
-      {{ isSidePanelClosed ? '☰' : '✕' }}
-    </button>
-    <h2 *ngIf="!isSidePanelClosed">Panel Admin</h2>
-
-    <nav>
-      <a routerLink="/admin" routerLinkActive="active" matTooltip="Inicio">
-        <i class="fas fa-home"></i>
-        <span *ngIf="!isSidePanelClosed">Inicio</span>
-      </a>
-      <a routerLink="/admin/usuarios" routerLinkActive="active" matTooltip="Usuarios">
-        <i class="fas fa-users"></i>
-        <span *ngIf="!isSidePanelClosed">Usuarios</span>
-      </a>
-      <a routerLink="/admin/canchas" routerLinkActive="active" matTooltip="Canchas">
-        <i class="fas fa-futbol"></i>
-        <span *ngIf="!isSidePanelClosed">Canchas</span>
-      </a>
-      <a routerLink="/admin/reservas" routerLinkActive="active" matTooltip="Reservas">
-        <i class="fas fa-calendar-check"></i>
-        <span *ngIf="!isSidePanelClosed">Reservas</span>
-      </a>
-
-    </nav>
-
-    <div class="user-info" *ngIf="!isSidePanelClosed">
-      <p>{{ userEmail }}</p>
-      <p>{{ userRole }}</p>
-    </div>
-
-    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
-      <i class="fas fa-sign-out-alt"></i>
-      <span *ngIf="!isSidePanelClosed">Cerrar sesión</span>
-    </button>
-  </aside>
-
-  <!-- Contenido principal -->
-  <main [class.closed]="isSidePanelClosed">
+  <main>
     <section class="reservas-section">
       <h1>Reservaciones</h1>
 
-      <!-- Buscador y botón añadir -->
-      <div class="usuarios-header">
-        <input
-          type="text"
-          placeholder="Buscar por usuario, cancha o código..."
-          [(ngModel)]="searchTerm"
-          (input)="filterReservations()"
-          autocomplete="off"
-          spellcheck="false"
-        />
-      
-        <label for="filterStatus">Estado:</label>
-        <select
-          id="filterStatus"
-          [(ngModel)]="filterStatus"
-          (change)="filterReservations()"
-        >
-          <option value="">Todos</option>
-          <option value="PENDING">Pendiente</option>
-          <option value="CONFIRMED">Confirmada</option>
-          <option value="FINISHED">Finalizada</option>
-          <option value="CANCELLED">Cancelada</option>
-        </select>
-      
-        <button class="add-btn" (click)="openForm(false)">
-          Añadir Reservación
-        </button>
+      <div class="reservas-toolbar">
+        <div class="search-box">
+          <input
+            type="text"
+            placeholder=" Buscar por usuario, cancha o código..."
+            [(ngModel)]="searchTerm"
+            (input)="filterReservations()"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+
+        <div class="filter-box">
+          <label for="filterStatus">Estado:</label>
+          <select
+            id="filterStatus"
+            [(ngModel)]="filterStatus"
+            (change)="filterReservations()"
+          >
+            <option value="">Todos</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="CONFIRMED">Confirmada</option>
+            <option value="FINISHED">Finalizada</option>
+            <option value="CANCELLED">Cancelada</option>
+            <option value="REACTIVATED">Reactivada</option>
+          </select>
+        </div>
       </div>
 
-      <!-- Modal formulario -->
       <div
         class="modal-backdrop"
         *ngIf="showForm"
         (click)="cancelForm()"
       >
         <div class="modal" (click)="$event.stopPropagation()">
-          <h2>{{ editMode ? 'Editar Reservación' : 'Nueva Reservación' }}</h2>
+          <h2>Editar Reservación</h2>
 
           <div class="form-group">
-            <label>Usuario*:</label>
-            <select [(ngModel)]="userId">
-              <option *ngFor="let user of users" [value]="user.id">
-                {{ user.firstName }} {{ user.lastName }} ({{ user.email }})
-              </option>
-            </select>
+            <label>Usuario (Solo lectura):</label>
+            <input type="text" [value]="currentUserFullName" disabled class="form-control" />
           </div>
 
           <div class="form-group">
@@ -109,88 +60,173 @@
           </div>
 
           <div class="form-group">
-            <label>Hora inicio*:</label>
-            <input type="time" [(ngModel)]="startTime" />
+            <label for="startTime">Hora inicio*</label>
+            <input
+              id="startTime"
+              type="time"
+              class="form-control"
+              [(ngModel)]="startTimeDisplay"
+              (change)="onStartTimeChange($event.target.value)"
+              required
+            />
           </div>
 
           <div class="form-group">
-            <label>Hora fin*:</label>
-            <input type="time" [(ngModel)]="endTime" />
+            <label for="endTime">Hora fin*</label>
+            <input
+              id="endTime"
+              type="time"
+              class="form-control"
+              [(ngModel)]="endTimeDisplay"
+              (change)="onEndTimeChange($event.target.value)"
+              required
+            />
           </div>
 
           <div class="form-actions">
-            <button (click)="submitForm()">
-              {{ editMode ? 'Guardar Cambios' : 'Crear Reservación' }}
-            </button>
+            <button (click)="submitForm()">Guardar Cambios</button>
             <button type="button" (click)="cancelForm()">Cancelar</button>
           </div>
         </div>
       </div>
 
-      <!-- Tabla de reservaciones -->
+      <div class="reservas-toolbar">
+        <div class="select-global">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [checked]="selectAllGlobal"
+              (change)="toggleSelectAllGlobal($event)"
+            />
+            <span>Seleccionar todas las reservas filtradas</span>
+          </label>
+        </div>
+
+        <div
+          class="bulk-actions"
+          *ngIf="selectedCount > 0"
+        >
+          <button
+            class="delete-btn"
+            (click)="cancelSelected()"
+            [disabled]="!hasCancelSelected"
+            [matTooltip]="!hasCancelSelected ? 'No hay reservaciones seleccionadas para cancelar' : ''"
+          >
+            🗑️ Cancelar seleccionadas
+          </button>
+
+          <button
+            class="reactivate-btn"
+            (click)="reactivateSelected()"
+            [disabled]="!hasReactivateSelected"
+            [matTooltip]="!hasReactivateSelected ? 'No hay reservaciones seleccionadas para reactivar' : ''"
+          >
+            ♻️ Reactivar seleccionadas
+          </button>
+        </div>
+      </div>
+
+      <p></p>
+
       <div class="table-container">
         <table class="usuarios-table">
           <thead>
             <tr>
+              <th>
+                <input type="checkbox" [checked]="areAllSelected()" (change)="toggleSelectAllPage($event)" />
+              </th>
               <th>Código</th>
-              <th>Usuario</th>
+              <th>Correo Usuario</th>
               <th>Cancha</th>
-              <th (click)="toggleSortByDate()" style="cursor: pointer;">
+              <th (click)="toggleSortByDate()" style="cursor:pointer;">
                 Fecha
-                <span *ngIf="sortDirection === 'asc'">▲</span>
-                <span *ngIf="sortDirection === 'desc'">▼</span>
+                <span *ngIf="sortColumn === 'date' && sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortColumn === 'date' && sortDirection === 'desc'">▼</span>
               </th>
               <th>Inicio</th>
               <th>Fin</th>
-              <th>Estado</th>
+              <th (click)="toggleSortByStatus()" style="cursor:pointer;">
+                Estado
+                <span *ngIf="sortColumn === 'status' && sortDirection === 'asc'">▲</span>
+                <span *ngIf="sortColumn === 'status' && sortDirection === 'desc'">▼</span>
+              </th>
               <th>Acciones</th>
             </tr>
           </thead>
+
           <tbody>
-            <tr *ngFor="let res of filteredReservations">
+            <tr *ngFor="let res of pagedReservations">
+              <td>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="res.selected"
+                  (change)="onReservationSelect(res, $event)"
+                  [disabled]="res.status === 'CONFIRMED' || res.status === 'FINISHED' || (res.status === 'CANCELLED' && !canSelectForReactivation(res))"
+                />
+              </td>
               <td>{{ res.code }}</td>
-              <td>{{ res.userFullName }}</td>
+              <td>{{ res.email }}</td>
               <td>{{ res.courtName }}</td>
               <td>{{ res.date | date:'yyyy-MM-dd' }}</td>
               <td>{{ res.startTime }}</td>
               <td>{{ res.endTime }}</td>
-              <td>{{ translateReservationStatus(res.status) }}</td>
+              
+              <td [class]="res.status.toLowerCase()">{{ formatStatusWithTimer(res) }}</td>
+              
               <td class="acciones">
-                <!-- Editar: solo si NO está CANCELADA ni FINALIZADA -->
                 <button class="edit-btn"
-                        (click)="openForm(true, res)"
-                        [disabled]="res.status === 'CANCELLED' || res.status === 'FINISHED'"
-                        [matTooltip]="res.status === 'CANCELLED' ? 'No se puede editar: reserva cancelada' : res.status === 'FINISHED' ? 'No se puede editar: reserva finalizada' : ''">
+                        (click)="openForm(res)"
+                        [disabled]="res.status==='CANCELLED' || res.status==='FINISHED' || res.status==='CONFIRMED'"
+                        [matTooltip]="
+                          res.status==='CANCELLED' ? 'No se puede editar: cancelada' :
+                          res.status==='FINISHED' ? 'No se puede editar: finalizada' :
+                          res.status==='CONFIRMED' ? 'No se puede editar: confirmada' :
+                          ''
+                        "
+                        >
                   ✏️ Editar
                 </button>
 
-                <!-- Cancelar: solo mostrar si NO está confirmada -->
-                <button *ngIf="res.status !== 'CONFIRMED'"
+                <button *ngIf="res.status !== 'CONFIRMED' && res.status !== 'FINISHED'"
                         class="delete-btn"
                         (click)="cancelReservation(res)"
-                        [disabled]="res.status === 'CANCELLED'"
-                        [matTooltip]="res.status === 'CANCELLED' ? 'Ya está cancelada' : ''">
+                        [disabled]="res.status==='CANCELLED'">
                   🗑️ Cancelar
                 </button>
 
-                <!-- Reactivar: si estaba CANCELLED -->
-                <button *ngIf="canReactivate(res)"
-                        class="reactivate-btn"
-                        (click)="reactivateReservation(res)">
+                <button class="reactivate-btn"
+                        (click)="reactivateReservation(res)"
+                        [disabled]="!canReactivate(res)"
+                        [matTooltip]="getReactivateTooltip(res)">
                   ♻️ Reactivar
                 </button>
 
-                <!-- Ver factura: solo si está CONFIRMED -->
+                <button *ngIf="canDeleteReservation(res)"
+                        class="delete-btn"
+                        (click)="deleteReservation(res)"
+                        [matTooltip]="getDeleteTooltip(res)">
+                  🗑️ Eliminar
+                </button>
+
                 <button *ngIf="canShowInvoice(res)" class="invoice-btn" (click)="openInvoice(res)">
-                  📄 Ver Factura
+                  📄 Factura
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
+
         <p *ngIf="filteredReservations.length === 0" class="no-results">
           No se encontraron reservaciones.
         </p>
+
+        <p>{{ selectedCount }} reserva(s) seleccionada(s)</p>
+
+        <div class="pagination" *ngIf="totalPages > 1">
+          <button (click)="previousPage()" [disabled]="currentPage === 1">⬅ Anterior</button>
+          <span>Página {{ currentPage }} de {{ totalPages }}</span>
+          <button (click)="nextPage()" [disabled]="currentPage === totalPages">Siguiente ➡</button>
+        </div>
       </div>
     </section>
   </main>

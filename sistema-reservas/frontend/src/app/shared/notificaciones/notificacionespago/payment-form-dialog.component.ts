@@ -6,6 +6,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+// 💡 1. Importar environment
+import { environment } from '../../../../environments/environment';
 
 export interface PaymentFormData {
   reservationId: string;       // UUID
@@ -16,6 +18,7 @@ interface ReservationDTO {
   id: string;
   code: string;
   courtName: string;
+  courtCode: string;
   startTime: string;
   endTime: string;
   pricePerHour: number;
@@ -63,6 +66,7 @@ export class PaymentFormDialogComponent implements OnInit {
   id = '';
   code = '';
   courtName = '';
+  courtCode = ''; 
   startTime = '';
   endTime = '';
   pricePerHour = 0;
@@ -94,29 +98,51 @@ export class PaymentFormDialogComponent implements OnInit {
   }
 
   ngOnInit() {
-    console.log('Payment data', this.data);
-
     if (this.data.reservationId) {
+      // 💡 2. Usar variable de entorno
       this.http.get<ReservationDTO>(
-        `http://localhost:8080/api/reservations/${this.data.reservationId}`
+        `${environment.apiUrl}/reservations/${this.data.reservationId}`
       ).subscribe({
         next: res => {
-          console.log('Reserva cargada:', res);
           this.id = res.id;
           this.code = res.code;
           this.courtName = res.courtName;
+          this.courtCode = res.courtCode;
           this.startTime = res.startTime;
           this.endTime = res.endTime;
           this.pricePerHour = Number(res.pricePerHour);
           this.totalPrice = Number(res.totalPrice);
           this.form.patchValue({ amount: this.totalPrice });
         },
-        error: err => {
-          console.error('Error al cargar la reserva', err);
-        }
+        error: err => console.error('Error al cargar la reserva', err)
       });
     }
   }
+  
+
+  formatTo12Hour(time: string): string {
+    if (!time) return '';
+
+    let hour: number;
+    let minute: number;
+
+    if (time.includes('T')) {
+      // Formato ISO 8601 completo
+      const date = new Date(time);
+      hour = date.getHours();
+      minute = date.getMinutes();
+    } else {
+      // Solo "HH:mm" o "HH:mm:ss"
+      const parts = time.split(':').map(Number);
+      hour = parts[0];
+      minute = parts[1] || 0;
+    }
+
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const h12 = hour % 12 || 12;
+    return `${h12}:${minute.toString().padStart(2, '0')} ${ampm}`;
+  }
+
 
   onlyNumbers(event: KeyboardEvent) {
     const charCode = event.which ? event.which : event.keyCode;

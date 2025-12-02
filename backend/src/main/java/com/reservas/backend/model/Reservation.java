@@ -1,9 +1,13 @@
 package com.reservas.backend.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime; // 💡 Importar
 import java.time.LocalTime;
+import java.time.ZoneId; // 💡 Importar
 import java.util.Objects;
 import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,15 +27,22 @@ public class Reservation {
     private String code; // Código legible de reserva (ej: R-AB12CD34)
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate date;
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime startTime;
 
     @Column(nullable = false)
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime endTime;
 
     private String status = "PENDING"; // "PENDING", "CONFIRMED", "CANCELLED"
+
+    // 💡 NUEVO: Hora exacta de creación para el temporizador de 3 minutos
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -59,6 +70,10 @@ public class Reservation {
         if (this.code == null) {
             this.code = "R-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(); // Código legible
         }
+        // 💡 Asignar hora actual al crear (Zona El Salvador)
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now(ZoneId.of("America/El_Salvador"));
+        }
     }
 
     // Getters y Setters
@@ -85,6 +100,10 @@ public class Reservation {
 
     public Court getCourt() { return court; }
     public void setCourt(Court court) { this.court = court; }
+
+    // 💡 Getter/Setter para createdAt
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     @Override
     public boolean equals(Object o) {

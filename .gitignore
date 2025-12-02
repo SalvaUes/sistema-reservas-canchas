@@ -1,0 +1,6 @@
+# Ignorar variables de entorno con secretos
+.env
+.env_local
+.env_production
+.env_prodution
+# Nota: agregué .env_prodution por si acaso quedó el archivo mal escrito antes

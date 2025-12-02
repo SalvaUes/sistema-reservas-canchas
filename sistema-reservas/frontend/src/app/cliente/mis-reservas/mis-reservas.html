@@ -1,70 +1,49 @@
 <div class="dashboard">
-  <!-- Barra lateral -->
-  <aside
-    class="side-panel"
-    [class.closed]="isSidePanelClosed"
-    (mouseenter)="hoverPanel(true)"
-    (mouseleave)="hoverPanel(false)"
-  >
-    <!-- Botón de toggle -->
-    <button class="toggle-btn" (click)="toggleSidePanel()">
-      {{ isSidePanelClosed ? '☰' : '✕' }}
-    </button>
-
-    <h2 [class.hidden]="isSidePanelClosed">Reservas</h2>
-
-    <nav>
-      <a routerLink="/cliente" routerLinkActive="active" matTooltip="Inicio">
-        <i class="fas fa-home"></i>
-        <span [class.hidden]="isSidePanelClosed">Inicio</span>
-      </a>
-      <a routerLink="/cliente/canchas" routerLinkActive="active" matTooltip="Canchas">
-        <i class="fas fa-futbol"></i>
-        <span [class.hidden]="isSidePanelClosed">Canchas</span>
-      </a>
-      <a routerLink="/cliente/mis-reservas" routerLinkActive="active" matTooltip="Mis Reservas">
-        <i class="fas fa-calendar-check"></i>
-        <span [class.hidden]="isSidePanelClosed">Mis Reservas</span>
-      </a>
-    </nav>
-
-    <!-- Info de usuario -->
-    <div class="user-info" [class.hidden]="isSidePanelClosed">
-      <p>{{ userEmail }}</p>
-      <p>{{ userRole }}</p>
-    </div>
-
-    <!-- Botón de logout -->
-    <button class="logout-btn" matTooltip="Cerrar sesión" (click)="logout()">
-      <i class="fas fa-sign-out-alt"></i>
-      <span [class.hidden]="isSidePanelClosed">Salir</span>
-    </button>
-  </aside>
-
   <!-- Contenido principal -->
-  <main [class.closed]="isSidePanelClosed">
+  <main>
     <section class="reservas-section">
       <h1>Mis Reservas</h1>
 
-      <div class="search-bar">
-        <input
-          type="text"
-          placeholder="Buscar reserva por codigo, cancha o fecha..."
-          [(ngModel)]="searchTerm"
-        />
-      </div>
+      <div class="courts-toolbar">
+        <div class="search-box">        
+          <input
+            type="text"
+            placeholder=" Buscar por codigo, cancha o estado..."
+            [(ngModel)]="searchTerm"
+            (input)="filterReservations()"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
 
+        <div class="filter-box">
+          <label for="filterStatus">Estado:</label>
+          <select
+            id="filterStatus"
+            [(ngModel)]="filterStatus"
+            (change)="filterReservations()"
+          >
+            <option value="">Todos</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="CONFIRMED">Confirmada</option>
+            <option value="FINISHED">Finalizada</option>
+            <option value="CANCELLED">Cancelada</option>
+            <option value="REACTIVATED">Reactivada</option>
+          </select>
+        </div>
+      </div>
+    
       <div class="table-container">
         <table class="reservas-table">
           <thead>
             <tr>
               <th>Código</th>
               <th>Cancha</th>
-              <th (click)="toggleSort()" style="cursor: pointer;">
+              <th (click)="toggleSortByDate()" style="cursor:pointer;">
                 Fecha
-                <span *ngIf="sortDirection === 'asc'">▲</span>
-                <span *ngIf="sortDirection === 'desc'">▼</span>
-              </th>
+                <span *ngIf="sortDirection==='asc'">▲</span>
+                <span *ngIf="sortDirection==='desc'">▼</span>
+              </th>              
               <th>Inicio</th>
               <th>Fin</th>
               <th>Estado</th>
@@ -72,44 +51,48 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of filteredReservations" [class.pending]="r.status === 'PENDING'">
+            <tr *ngFor="let r of pagedReservations" [class.pending]="r.status === 'PENDING'">
               <td>{{ r.code }}</td>
               <td>{{ r.courtName }}</td>
               <td>{{ r.date }}</td>
               <td>{{ r.startTime }}</td>
               <td>{{ r.endTime }}</td>
+              
+              <!-- Estado con texto dinámico -->
+              <td>{{ translateStatus(r) }}</td>
+              
               <td>
-                {{ translateStatus(r) }}
-                <span *ngIf="r.status === 'PENDING'">⚡ Reserva pendiente</span>
-              </td>
-              <td>
-                <button
-                  *ngIf="r.status === 'PENDING'"
-                  class="confirm-btn"
-                  (click)="confirmReservation(r.id)">
-                  Confirmar Reserva
-                </button>
+                <!-- 💡 Lógica: Mostrar botones solo si NO ha expirado -->
+                <ng-container *ngIf="(r.status === 'PENDING' || r.status === 'REACTIVATED')">
+                    <div *ngIf="!isExpired(r)" class="action-buttons">
+                        <button class="confirm-btn" (click)="confirmReservation(r.id)">Confirmar</button>
+                        <button class="cancel-btn" (click)="cancelReservation(r.id)">Cancelar</button>
+                    </div>
+                    <!-- Si expiró pero el backend aun no lo marca como CANCELLED -->
+                    <div *ngIf="isExpired(r)" class="badge-expired">
+                        <span>Expirado</span>
+                    </div>
+                </ng-container>
 
-                <button
-                  *ngIf="r.status === 'PENDING'"
-                  class="cancel-btn"
-                  (click)="cancelReservation(r.id)">
-                  Cancelar Reserva
-                </button>
-
-                <button
-                  *ngIf="r.status === 'CONFIRMED'"
-                  class="invoice-btn"
-                  (click)="viewInvoice(r.id)">
-                  Ver Facturación
-                </button>
+                <button *ngIf="r.status === 'CONFIRMED'" class="invoice-btn" (click)="viewInvoice(r.id)">Ver Facturación</button>
+                
+                <span *ngIf="r.status === 'CANCELLED'" class="badge-cancelled">Cancelada</span>
+                <span *ngIf="r.status === 'FINISHED'" class="badge-finished">Finalizada</span>
               </td>
             </tr>
           </tbody>
         </table>
-
+        <p *ngIf="filteredReservations.length === 0" class="no-results">No se encontraron reservas.</p>
+        
         <div *ngIf="hasPendingReservations" class="pending-banner">
-          ⚡ Tienes reservas pendientes. Por favor confirma para asegurar tu espacio.
+          Tienes reservas pendientes. Por favor confirma para asegurar tu espacio.
+        </div>
+        
+        <!-- Paginación -->
+        <div class="pagination" *ngIf="totalPages > 1">
+          <button (click)="previousPage()" [disabled]="currentPage === 1">⬅ Anterior</button>
+          <span>Página {{ currentPage }} de {{ totalPages }}</span>
+          <button (click)="nextPage()" [disabled]="currentPage === totalPages">Siguiente ➡</button>
         </div>
       </div>
     </section>

@@ -1,7 +1,8 @@
-// frontend/src/app/services/payment.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+// 💡 1. Importar environment
+import { environment } from '../../environments/environment';
 
 export interface PaymentRequest {
   method: 'CARD' | 'CASH';
@@ -29,24 +30,19 @@ export interface InvoiceDTO {
   providedIn: 'root'
 })
 export class PaymentService {
-  private apiUrl = 'http://localhost:8080/api/payments';
+  private readonly apiUrl = `${environment.apiUrl}/payments`;
 
   constructor(private http: HttpClient) {}
 
-  // Cambiar 'number' a 'string'
   payReservation(reservationId: string, request: PaymentRequest): Observable<InvoiceDTO> {
     return this.http.post<InvoiceDTO>(`${this.apiUrl}/${reservationId}`, request);
   }
 
-  // Cambiar 'number' a 'string'
   getInvoiceByReservation(reservationId: string): Observable<InvoiceDTO> {
     return this.http.get<InvoiceDTO>(`${this.apiUrl}/invoice/${reservationId}`);
   }
 
   getReservationInvoiceStatus(reservationId: string) {
-    return this.http.get<any>(`http://localhost:8080/api/payments/reservation/${reservationId}`);
+    return this.http.get<any>(`${this.apiUrl}/reservation/${reservationId}`);
   }
-
-
 }
-

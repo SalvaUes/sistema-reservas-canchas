@@ -1,0 +1,269 @@
+.landing-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: white;
+  position: relative;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden; /* Evitar scroll horizontal */
+}
+
+/* =========================================
+   SECCIÓN HERO Y TÍTULOS
+   ========================================= */
+.hero-section {
+  width: 100%;
+  max-width: 900px;
+  text-align: center;
+  padding: 2rem;
+  z-index: 1;
+
+  h1 {
+    font-size: 3.5rem; /* Un poco más grande */
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    
+    /* 🎨 Degradado de Texto */
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    
+    /* 💡 CORRECCIÓN DE COMPATIBILIDAD Y CORTE */
+    -webkit-background-clip: text;
+    background-clip: text; 
+    -webkit-text-fill-color: transparent;
+    color: transparent; /* Fallback estándar */
+    
+    /* Evita que se corten las letras bajas (g, j, p, q, y) */
+    line-height: 1.2;
+    padding-bottom: 10px; 
+  }
+
+  p {
+    font-size: 1.2rem;
+    color: #cbd5e1;
+    margin-bottom: 3rem;
+  }
+}
+
+/* Contenedor de las Tarjetas de Acción */
+.actions-container {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* =========================================
+   ESTILOS DE LAS TARJETAS (LOGIN/REGISTER)
+   ========================================= */
+
+/* Diseño Base de la Tarjeta */
+.card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
+  width: 300px;
+  min-height: 200px; /* Altura mínima consistente */
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  outline: none; /* Quitar borde azul al hacer clic */
+
+  /* Efecto Hover General */
+  &:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Icono dentro de la tarjeta */
+  .card-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1.5rem;
+    transition: transform 0.3s ease;
+  }
+
+  &:hover .card-icon {
+    transform: scale(1.15) rotate(-5deg);
+  }
+
+  .card-content {
+    h3 {
+      font-size: 1.6rem;
+      margin-bottom: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    p {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      margin: 0;
+      line-height: 1.4;
+    }
+  }
+}
+
+/* --- Tarjeta Login (Azul) --- */
+.card-login {
+  background: linear-gradient(145deg, rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.6));
+  
+  .card-icon { color: #60a5fa; }
+
+  &:hover {
+    background: linear-gradient(145deg, rgba(30, 58, 138, 0.6), rgba(15, 23, 42, 0.8));
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); /* Glow azul */
+  }
+}
+
+/* --- Tarjeta Registro (Verde/Teal) --- */
+.card-register {
+  background: linear-gradient(145deg, rgba(13, 148, 136, 0.4), rgba(15, 23, 42, 0.6));
+
+  .card-icon { color: #2dd4bf; }
+
+  &:hover {
+    background: linear-gradient(145deg, rgba(13, 148, 136, 0.6), rgba(15, 23, 42, 0.8));
+    box-shadow: 0 0 30px rgba(20, 184, 166, 0.3); /* Glow verde */
+  }
+}
+
+/* --- Tarjeta de Carga (Spinner) --- */
+.loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 2rem;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-left-color: #38bdf8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  p {
+    font-size: 1rem;
+    margin: 0;
+    color: #cbd5e1;
+  }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+
+/* =========================================
+   ESTILOS DEL ERROR OVERLAY (Pop-up)
+   ========================================= */
+.error-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85); // Fondo oscuro con blur
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+
+  .error-card {
+    background: #ffffff;
+    color: #333;
+    padding: 3rem;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    border-top: 10px solid #ef4444; // Línea roja superior
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+    .close-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #9ca3af;
+      transition: color 0.2s;
+      
+      &:hover { color: #374151; }
+    }
+
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      animation: shake 0.5s ease-in-out;
+    }
+
+    h2 {
+      color: #dc2626;
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      font-weight: 800;
+    }
+
+    p {
+      font-size: 1.2rem;
+      color: #4b5563;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .modal-action-btn {
+      background-color: #ef4444;
+      color: white;
+      border: none;
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+
+      &:hover { 
+        background-color: #dc2626; 
+        transform: translateY(-2px);
+      }
+      
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
+}
+
+/* Animaciones Globales */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}

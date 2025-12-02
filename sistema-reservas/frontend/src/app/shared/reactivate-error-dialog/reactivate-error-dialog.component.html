@@ -1,0 +1,25 @@
+<h2 mat-dialog-title>Resultado de la reactivación</h2>
+
+<mat-dialog-content class="dialog-content">
+  <div class="error-list">
+    <div 
+      class="error-item" 
+      *ngFor="let r of pagedResults" 
+      [ngClass]="r.status === 'success' ? 'success' : 'failed'"
+    >
+      <span class="code">{{ r.code }}</span>
+      <span class="message">{{ r.message }}</span>
+    </div>
+  </div>
+
+  <!-- Paginación -->
+  <div class="pagination" *ngIf="totalPages > 1">
+    <button (click)="prevPage()" [disabled]="currentPage === 1">&laquo; Anterior</button>
+    <span>Página {{ currentPage }} de {{ totalPages }}</span>
+    <button (click)="nextPage()" [disabled]="currentPage === totalPages">Siguiente &raquo;</button>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-raised-button (click)="close()">Cerrar</button>
+</mat-dialog-actions>

@@ -16,9 +16,13 @@ export interface InvoiceDialogData {
     customerPhone: string;
     status: string;
     paymentDate: string;
+
+    courtName: string;
+    courtCode: string;
+    startTime: string;  
+    endTime: string; 
   };
 }
-
 
 @Component({
   selector: 'app-invoice-dialog',
@@ -47,6 +51,53 @@ export class InvoiceDialogComponent {
     const match = data.invoice.reservationCode.match(/RES-(\w{8})/);
     this.displayReservationCode = match ? `R-${match[1]}` : data.invoice.reservationCode;
   }
+
+  translatePaymentMethod(method: string): string {
+    switch(method.toUpperCase()) {
+      case 'CARD': return 'Tarjeta';
+      case 'CASH': return 'Efectivo';
+      case 'TRANSFER': return 'Transferencia';
+      default: return method;
+    }
+  }
+
+  translatePaymentStatus(status: string): string {
+    switch(status.toUpperCase()) {
+      case 'CONFIRMED': return 'Confirmado';
+      case 'PENDING': return 'Pendiente';
+      case 'CANCELLED': return 'Cancelado';
+      default: return status;
+    }
+  }
+
+  // Devuelve horario en 12h
+  formatTime(time: string): string {
+    if (!time) return '';
+    let hour: number;
+    let minute: number;
+
+    if (time.includes('T')) {
+      // Formato ISO
+      const date = new Date(time);
+      hour = date.getHours();
+      minute = date.getMinutes();
+    } else {
+      // Formato "HH:mm" o "HH:mm:ss"
+      const parts = time.split(':').map(Number);
+      hour = parts[0];
+      minute = parts[1] ?? 0;
+    }
+
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const h12 = hour % 12 || 12;
+    return `${h12}:${minute.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  // Rango de horario
+  formatTimeRange(start: string, end: string): string {
+    return `${this.formatTime(start)} - ${this.formatTime(end)}`;
+  }
+
 
   downloadPDF() {
     const doc = new jsPDF();
@@ -80,8 +131,10 @@ export class InvoiceDialogComponent {
         ['Factura', this.data.invoice.invoiceNumber],
         ['Código de Reserva', this.displayReservationCode],
         ['Monto', `$${this.data.invoice.amount}`],
-        ['Método de pago', this.data.invoice.method],
-        ['Estado del pago', this.data.invoice.status],
+        ['Método de pago', this.translatePaymentMethod(this.data.invoice.method)],
+        ['Estado del pago', this.translatePaymentStatus(this.data.invoice.status)],
+        ['Cancha', `${this.data.invoice.courtName} (${this.data.invoice.courtCode})`],
+        ['Horario', this.formatTimeRange(this.data.invoice.startTime, this.data.invoice.endTime)],
         ['Fecha de pago', this.formattedDate]
       ],
       theme: 'grid',

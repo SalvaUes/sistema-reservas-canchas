@@ -1,5 +1,20 @@
-<!-- // frontend/src/app/app.html -->
 <main>
   <router-outlet></router-outlet>
+  
   <app-notification></app-notification>
+
+  <div class="block-overlay" *ngIf="showBlockModal">
+    
+    <div class="block-card" [ngClass]="{'role-update': modalType === 'role_change'}">
+      
+      <div class="icon">{{ modalIcon }}</div>
+      <h2>{{ modalTitle }}</h2>
+      <p>{{ blockMessage }}</p>
+      
+      <button class="action-btn" (click)="closeBlockModal()">
+        {{ modalType === 'role_change' ? 'Actualizar sesión' : 'Entendido, salir' }}
+      </button>
+
+    </div>
+  </div>
 </main>

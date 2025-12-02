@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +19,6 @@ import com.reservas.backend.service.PaymentService;
 
 @RestController
 @RequestMapping("/api/payments")
-@CrossOrigin(origins = "http://localhost:4200")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -28,41 +27,31 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    /**
-     * Obtiene la factura de una reserva específica
-     */
     @GetMapping("/invoice/{reservationId}")
+    @PreAuthorize("hasAuthority('SCOPE_read:payments')")
     public ResponseEntity<InvoiceDTO> getInvoiceByReservation(@PathVariable UUID reservationId) {
         try {
             InvoiceDTO invoice = paymentService.getInvoiceByReservation(reservationId);
             return ResponseEntity.ok(invoice);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 
-    /**
-     * Procesa el pago de una reserva y genera la factura
-     */
     @PostMapping("/{reservationId}")
+    @PreAuthorize("hasAuthority('SCOPE_create:payments')")
     public ResponseEntity<InvoiceDTO> payReservation(@PathVariable UUID reservationId,
                                                      @RequestBody PaymentRequest request) {
         try {
             InvoiceDTO invoice = paymentService.processPayment(reservationId, request);
             return ResponseEntity.ok(invoice);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
 
-    /**
-     * Nuevo endpoint: verifica si existe factura para la reserva
-     * Retorna:
-     *  - hasInvoice: true/false
-     *  - invoice: si existe
-     *  - message: si no existe
-     */
     @GetMapping("/reservation/{reservationId}")
+    @PreAuthorize("hasAuthority('SCOPE_read:payments')")
     public ResponseEntity<Map<String, Object>> getReservationInvoiceStatus(@PathVariable UUID reservationId) {
         try {
             InvoiceDTO invoice = paymentService.getInvoiceByReservation(reservationId);
